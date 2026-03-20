@@ -19,7 +19,7 @@ import {
   LayoutGrid,
   Columns,
   GripVertical,
-  CheckSquare,
+  SquareCheck,
   Globe,
   Hash,
   FileText
@@ -43,7 +43,7 @@ import {
   signInAnonymously 
 } from 'firebase/auth';
 
-// --- Constants & Config ---
+// --- COMPASS FIREBASE CONFIGURATION ---
 const firebaseConfig = {
   apiKey: "AIzaSyBJm5JVgTwMCYhByStI7r3zJkHre0yxRjo",
   authDomain: "compass-study-tracker.firebaseapp.com",
@@ -142,7 +142,6 @@ const App = () => {
     }, {});
   }, [studies]);
 
-  // Drag & Drop Handlers
   const onDragStart = (e, id) => {
     setDraggedId(id);
     e.dataTransfer.setData("studyId", id);
@@ -227,7 +226,6 @@ const App = () => {
     const ministry = MINISTRIES[study.ministryId.toUpperCase()] || MINISTRIES.MENS;
     const isDragging = draggedId === study.id;
     
-    // Status color helpers
     const getStatusColor = (val) => {
       if (val?.includes('Approved') || val?.includes('available') || val?.includes('distributed')) return 'text-emerald-600 bg-emerald-50 border-emerald-100';
       if (val?.includes('Required') || val?.includes('Not Started') || val?.includes('Request')) return 'text-rose-600 bg-rose-50 border-rose-100';
@@ -257,7 +255,6 @@ const App = () => {
           </button>
         </div>
 
-        {/* Status Indicators for Pipeline View */}
         <div className="mt-2 flex flex-wrap gap-1">
           {study.studyMaterial !== 'Not Started' && (
             <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border ${getStatusColor(study.studyMaterial)}`}>
@@ -288,7 +285,7 @@ const App = () => {
     <div className="min-h-screen bg-slate-50 flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
         <Loader2 className="animate-spin text-blue-600" size={32} />
-        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Loading Discipleship Cloud...</span>
+        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Compass Discipleship Cloud...</span>
       </div>
     </div>
   );
@@ -299,8 +296,8 @@ const App = () => {
         <div className="w-full mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="bg-blue-600 p-2.5 rounded-xl shadow-lg shadow-blue-100"><BookOpen className="text-white" size={20} /></div>
-            <div>
-              <h1 className="text-xl font-black text-slate-800 tracking-tight leading-none">Ministry Study Tracker</h1>
+            <div className="hidden sm:block">
+              <h1 className="text-xl font-black text-slate-800 tracking-tight leading-none">Study Tracker</h1>
               <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-1">Compass Community Church</p>
             </div>
           </div>
@@ -355,4 +352,207 @@ const App = () => {
             <section className="flex-1 min-w-0">
               <h2 className="text-3xl font-black text-slate-800 mb-8 tracking-tight">{STAGES.find(s => s.id === activeStage)?.name}</h2>
               {(studiesByStage[activeStage] || []).length === 0 ? (
-                <div className="bg-white border-2 border-dashed border-slate-200 rounded-
+                <div className="bg-white border-2 border-dashed border-slate-200 rounded-[3rem] p-24 text-center text-slate-300 font-black italic text-xl">
+                  No active studies in this phase.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                  {(studiesByStage[activeStage] || []).map(study => (
+                    <StudyCard key={study.id} study={study} />
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        ) : (
+          <div className="flex flex-row gap-6 h-[calc(100vh-160px)] w-full overflow-x-auto lg:overflow-x-visible pb-4">
+            {STAGES.map(stage => (
+              <div 
+                key={stage.id} 
+                onDragOver={(e) => onDragOver(e, stage.id)}
+                onDragLeave={() => setDragOverStage(null)}
+                onDrop={(e) => onDrop(e, stage.id)}
+                className={`flex-1 min-w-[300px] flex flex-col rounded-[2.5rem] transition-all duration-300 ${dragOverStage === stage.id ? 'bg-blue-50 ring-4 ring-blue-100 ring-inset scale-[1.02]' : 'bg-transparent'}`}
+              >
+                <div className="flex items-center justify-between mb-4 px-5 py-4 bg-slate-200/50 rounded-2xl border border-slate-200 shadow-sm">
+                  <h4 className="text-[11px] font-black text-slate-700 uppercase tracking-widest flex items-center gap-2 truncate">
+                    <stage.icon size={14} className="text-slate-400" /> {stage.name}
+                  </h4>
+                  <span className="text-[10px] font-black bg-white px-3 py-1 rounded-lg border text-slate-400 shadow-sm">
+                    {(studiesByStage[stage.id] || []).length}
+                  </span>
+                </div>
+                <div className="flex-1 overflow-y-auto space-y-4 pb-4 scrollbar-hide px-1">
+                  {(studiesByStage[stage.id] || []).map(study => (
+                    <StudyCard key={study.id} study={study} compact={true} />
+                  ))}
+                  <button 
+                    onClick={() => handleOpenModal(null, stage.id)}
+                    className="w-full py-5 border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 hover:text-blue-500 hover:border-blue-200 hover:bg-white transition-all text-xs font-black flex items-center justify-center gap-2 uppercase tracking-widest"
+                  >
+                    <Plus size={16} strokeWidth={4} /> Add Study
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </main>
+
+      {/* Expanded Modal with Restored Fields */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
+          <div className="bg-white rounded-[3.5rem] shadow-2xl w-full max-w-4xl my-auto overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="p-10 border-b flex items-center justify-between bg-slate-50/50 sticky top-0 z-10">
+              <div>
+                <h2 className="text-3xl font-black text-slate-800 tracking-tight leading-none">{editingStudy ? 'Update Study' : 'Register New Study'}</h2>
+                <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mt-2">Discipleship Pathway Documentation</p>
+              </div>
+              <button onClick={() => setIsModalOpen(false)} className="p-4 hover:bg-white border border-transparent hover:border-slate-200 rounded-3xl transition-all shadow-sm hover:shadow-md">
+                <X size={28} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSave} className="p-10 space-y-10 max-h-[70vh] overflow-y-auto custom-scrollbar">
+              
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 text-blue-600">
+                  <Info size={18} strokeWidth={3} />
+                  <h3 className="text-xs font-black uppercase tracking-[0.2em]">General Details</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="md:col-span-2">
+                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Study Title</label>
+                    <input required className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-xl focus:ring-4 focus:ring-blue-100 focus:bg-white outline-none transition-all" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Ministry Area</label>
+                    <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-blue-100 outline-none transition-all" value={formData.ministryId} onChange={e => setFormData({...formData, ministryId: e.target.value})}>
+                      {Object.values(MINISTRIES).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Discipleship Stage</label>
+                    <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-blue-100 outline-none transition-all" value={formData.stage} onChange={e => setFormData({...formData, stage: e.target.value})}>
+                      {STAGES.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Start Date</label>
+                    <input type="date" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-blue-100 outline-none transition-all" value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Number of Weeks</label>
+                    <div className="relative">
+                      <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                      <input type="number" className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-5 py-4 font-bold text-sm focus:ring-4 focus:ring-blue-100 outline-none transition-all" value={formData.weeks} onChange={e => setFormData({...formData, weeks: parseInt(e.target.value) || 0})} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-6 pt-6 border-t border-slate-100">
+                <div className="flex items-center gap-2 text-emerald-600">
+                  <Package size={18} strokeWidth={3} />
+                  <h3 className="text-xs font-black uppercase tracking-[0.2em]">Resources & Tracking</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Study Material Status</label>
+                    <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-emerald-100 outline-none transition-all" value={formData.studyMaterial} onChange={e => setFormData({...formData, studyMaterial: e.target.value})}>
+                      {OPTIONS.STUDY_MATERIAL.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Physical Resources</label>
+                    <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-emerald-100 outline-none transition-all" value={formData.physicalResources} onChange={e => setFormData({...formData, physicalResources: e.target.value})}>
+                      {OPTIONS.PHYSICAL_RESOURCES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Digital Resources</label>
+                    <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-emerald-100 outline-none transition-all" value={formData.digitalResources} onChange={e => setFormData({...formData, digitalResources: e.target.value})}>
+                      {OPTIONS.DIGITAL_RESOURCES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Location</label>
+                    <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-emerald-100 outline-none transition-all" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})}>
+                      {LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-6 pt-6 border-t border-slate-100">
+                <div className="flex items-center gap-2 text-purple-600">
+                  <Megaphone size={18} strokeWidth={3} />
+                  <h3 className="text-xs font-black uppercase tracking-[0.2em]">Promotion & Post-Study</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4">
+                    <input 
+                      type="checkbox" 
+                      id="websiteUpdated"
+                      className="w-5 h-5 rounded border-slate-300 text-purple-600 focus:ring-purple-500" 
+                      checked={formData.websiteUpdated} 
+                      onChange={e => setFormData({...formData, websiteUpdated: e.target.checked})} 
+                    />
+                    <label htmlFor="websiteUpdated" className="text-sm font-bold text-slate-700 cursor-pointer">Website Updated / Study Promoted?</label>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Live Study Tracking</label>
+                    <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-purple-100 outline-none transition-all" value={formData.liveTracking} onChange={e => setFormData({...formData, liveTracking: e.target.value})}>
+                      {OPTIONS.LIVE_TRACKING.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Proposed Promo Text</label>
+                    <div className="relative">
+                      <FileText className="absolute left-5 top-5 text-slate-400" size={18} />
+                      <textarea rows={3} className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-14 pr-5 py-4 text-base focus:ring-4 focus:ring-purple-100 outline-none transition-all focus:bg-white" placeholder="Enter blurb..." value={formData.promoText} onChange={e => setFormData({...formData, promoText: e.target.value})} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Post-Study Review Status</label>
+                    <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-purple-100 outline-none transition-all" value={formData.postReview} onChange={e => setFormData({...formData, postReview: e.target.value})}>
+                      {OPTIONS.POST_REVIEW.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  </div>
+                   <div>
+                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Quick Logistics Notes</label>
+                    <input className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-purple-100 outline-none transition-all" placeholder="Any final thoughts?" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-4 pt-10 justify-end border-t border-slate-100 sticky bottom-0 bg-white pb-2">
+                {editingStudy && (
+                  <button type="button" onClick={() => handleDelete(editingStudy.id)} className="px-8 py-4 font-black text-[10px] text-rose-500 uppercase tracking-widest hover:bg-rose-50 rounded-2xl transition-all">Delete</button>
+                )}
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-8 py-4 font-bold text-slate-400">Cancel</button>
+                <button type="submit" className="bg-slate-900 px-12 py-4 rounded-[2rem] font-black text-base text-white shadow-2xl shadow-slate-200 flex items-center gap-3 active:scale-95 transition-all">
+                  <Save size={20} strokeWidth={3} /> {editingStudy ? 'Update' : 'Save'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      `}</style>
+    </div>
+  );
+};
+
+const rootElement = document.getElementById('root');
+if (rootElement) {
+  ReactDOM.createRoot(rootElement).render(<App />);
+}
+
+export default App;
