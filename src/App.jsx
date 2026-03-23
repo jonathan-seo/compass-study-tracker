@@ -22,8 +22,18 @@ import {
   SquareCheck,
   Globe,
   Hash,
-  FileText
+  FileText,
+  AlertTriangle
 } from 'lucide-react';
+
+const STAGE_INDEXES = { planning: 0, approval: 1, sourcing: 2, promotion: 3, active: 4, review: 5 };
+const getStudyWarnings = (study) => {
+  const isPastApproval = STAGE_INDEXES[study.stage] > 1; 
+  return {
+    missingResources: isPastApproval && !study.resourcesObtained,
+    missingPromotion: isPastApproval && !study.websiteUpdated
+  };
+};
 
 // Firebase Imports
 import { initializeApp } from 'firebase/app';
@@ -109,6 +119,7 @@ const App = () => {
     studyMaterial: 'Not Started',
     physicalResources: 'Not required',
     digitalResources: 'Not required',
+    resourcesObtained: false,
     websiteUpdated: false,
     liveTracking: 'Not started',
     postReview: 'Not Started',
@@ -184,6 +195,7 @@ const App = () => {
         studyMaterial: 'Not Started',
         physicalResources: 'Not required',
         digitalResources: 'Not required',
+        resourcesObtained: false,
         websiteUpdated: false,
         liveTracking: 'Not started',
         postReview: 'Not Started',
@@ -202,6 +214,7 @@ const App = () => {
         studyMaterial: 'Not Started',
         physicalResources: 'Not required',
         digitalResources: 'Not required',
+        resourcesObtained: false,
         websiteUpdated: false,
         liveTracking: 'Not started',
         postReview: 'Not Started',
@@ -262,6 +275,19 @@ const App = () => {
             <h3 className={`font-bold text-slate-800 leading-tight truncate ${!compact ? 'text-base' : 'text-[12px]'}`}>
               {study.title}
             </h3>
+            {(() => {
+              const warnings = getStudyWarnings(study);
+              return (warnings.missingResources || warnings.missingPromotion) && (
+                <div className="flex flex-col gap-1 mt-2">
+                  {warnings.missingResources && (
+                    <span className="flex items-center gap-1 text-[9px] font-black uppercase text-red-600 bg-red-50 border border-red-200 px-2 py-1 rounded w-fit tracking-wider shadow-sm"><AlertTriangle size={10} /> Needs Resources</span>
+                  )}
+                  {warnings.missingPromotion && (
+                    <span className="flex items-center gap-1 text-[9px] font-black uppercase text-red-600 bg-red-50 border border-red-200 px-2 py-1 rounded w-fit tracking-wider shadow-sm"><AlertTriangle size={10} /> Needs Promo/Web</span>
+                  )}
+                </div>
+              );
+            })()}
           </div>
           <button onClick={() => handleOpenModal(study)} className="p-1 text-slate-300 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
             <MoreVertical size={!compact ? 18 : 14} />
@@ -519,8 +545,27 @@ const App = () => {
                     {group.studies.map(study => (
                       <div key={study.id} className="flex group/row hover:bg-slate-50/80 transition-colors h-14 border-b border-slate-50 last:border-0 relative">
                         <div className="w-64 flex-shrink-0 px-4 py-2 border-r border-slate-200 bg-white group-hover/row:bg-slate-50/50 transition-colors sticky left-0 z-10 flex flex-col justify-center shadow-[1px_0_0_0_#e2e8f0]">
-                          <h4 className="text-xs font-bold text-slate-700 truncate" title={study.title}>{study.title}</h4>
-                          <span className="text-[9px] font-bold text-slate-400 mt-0.5">{study.weeks} weeks • {study.startDate}</span>
+                          <div className="flex items-center gap-2 pr-2">
+                            <h4 className="text-xs font-bold text-slate-700 truncate" title={study.title}>{study.title}</h4>
+                            {(() => {
+                              const warnings = getStudyWarnings(study);
+                              return (warnings.missingResources || warnings.missingPromotion) && (
+                                <AlertTriangle size={14} className="text-red-500 flex-shrink-0" />
+                              );
+                            })()}
+                          </div>
+                          <div className="flex items-center gap-1 mt-1 flex-wrap">
+                            <span className="text-[9px] font-bold text-slate-400">{study.weeks} weeks • {study.startDate}</span>
+                            {(() => {
+                              const warnings = getStudyWarnings(study);
+                              return (warnings.missingResources || warnings.missingPromotion) && (
+                                <div className="flex gap-1">
+                                  {warnings.missingResources && <span className="text-[8px] font-bold bg-red-100 text-red-700 px-1 py-0.5 rounded leading-none border border-red-200">NO RES</span>}
+                                  {warnings.missingPromotion && <span className="text-[8px] font-bold bg-red-100 text-red-700 px-1 py-0.5 rounded leading-none border border-red-200">NO PROMO</span>}
+                                </div>
+                              );
+                            })()}
+                          </div>
                         </div>
                         <div className="flex-1 relative py-2">
                           <div 
@@ -742,6 +787,16 @@ const App = () => {
                   <h3 className="text-xs font-black uppercase tracking-[0.2em]">Resources & Tracking</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="md:col-span-2 flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4">
+                    <input 
+                      type="checkbox" 
+                      id="resourcesObtained"
+                      className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" 
+                      checked={formData.resourcesObtained} 
+                      onChange={e => setFormData({...formData, resourcesObtained: e.target.checked})} 
+                    />
+                    <label htmlFor="resourcesObtained" className="text-sm font-bold text-slate-700 cursor-pointer">Resources obtained and available?</label>
+                  </div>
                   <div>
                     <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Study Material Status</label>
                     <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-emerald-100 outline-none transition-all" value={formData.studyMaterial} onChange={e => setFormData({...formData, studyMaterial: e.target.value})}>
