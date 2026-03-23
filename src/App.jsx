@@ -143,9 +143,10 @@ const App = () => {
   }, [studies]);
 
   const onDragStart = (e, id) => {
-    setDraggedId(id);
     e.dataTransfer.setData("studyId", id);
     e.dataTransfer.effectAllowed = "move";
+    // Defer state update so it doesn't cancel the native drag event
+    setTimeout(() => setDraggedId(id), 0);
   };
 
   const onDragOver = (e, stageId) => {
@@ -236,6 +237,7 @@ const App = () => {
       <div 
         draggable
         onDragStart={(e) => onDragStart(e, study.id)}
+        onDragEnd={() => setDraggedId(null)}
         className={`select-none group bg-white border rounded-2xl shadow-sm hover:shadow-md transition-all overflow-hidden mb-3 cursor-grab active:cursor-grabbing ${compact ? 'p-3' : 'p-5'} ${isDragging ? 'opacity-40 scale-95' : 'opacity-100'}`}
       >
         <div className="flex items-start justify-between">
