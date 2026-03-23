@@ -297,6 +297,29 @@ const App = () => {
     const ministryEnd = new Date(endYear, 8, 1);
     const msPerDay = 1000 * 60 * 60 * 24;
     const totalDays = Math.round((ministryEnd - ministryStart) / msPerDay);
+
+    // Calculate proportional months
+    const timelineMonths = [];
+    for (let i = 0; i < 12; i++) {
+      const mDate = new Date(startYear, 8 + i, 1);
+      const nextMonth = new Date(startYear, 8 + i + 1, 1);
+      const daysInMonth = Math.round((nextMonth - mDate) / msPerDay);
+      const monthName = mDate.toLocaleString('default', { month: 'short' });
+      timelineMonths.push({ name: monthName, days: daysInMonth, widthPct: (daysInMonth / totalDays) * 100 });
+    }
+
+    // Calculate all Sundays
+    const sundays = [];
+    let currDate = new Date(ministryStart);
+    while (currDate.getDay() !== 0) {
+      currDate.setDate(currDate.getDate() + 1);
+    }
+    while (currDate < ministryEnd) {
+      const leftOffsetDays = (currDate - ministryStart) / msPerDay;
+      const leftPct = (leftOffsetDays / totalDays) * 100;
+      sundays.push({ date: currDate.getDate(), leftPct });
+      currDate.setDate(currDate.getDate() + 7);
+    }
     
     const validStudies = studies.filter(s => s.startDate && s.weeks > 0);
     
@@ -329,8 +352,6 @@ const App = () => {
       studies: plottedStudies.filter(s => s.ministryId === ministry.id).sort((a,b) => new Date(a.startDate) - new Date(b.startDate))
     })).filter(g => g.studies.length > 0);
 
-    const months = ['Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'];
-
     return (
       <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm p-6 overflow-hidden flex flex-col h-[calc(100vh-160px)]">
         <div className="flex items-center justify-between mb-6 px-2">
@@ -344,23 +365,34 @@ const App = () => {
         
         <div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar border border-slate-100 rounded-2xl shadow-inner bg-slate-50/30">
           <div className="min-w-[1200px] h-full flex flex-col">
-            <div className="flex sticky top-0 bg-slate-50 z-20 border-b border-slate-200 shadow-sm">
-              <div className="w-64 flex-shrink-0 bg-slate-50 p-4 border-r border-slate-200 flex items-center">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ministry / Study</span>
-              </div>
-              <div className="flex-1 flex">
-                {months.map((m) => (
-                  <div key={m} className="flex-1 border-r border-slate-200 p-3 text-center bg-slate-50">
-                    <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{m}</span>
+            <div className="flex flex-col sticky top-0 bg-slate-50 z-20 border-b border-slate-200 shadow-sm">
+              <div className="flex">
+                <div className="w-64 flex-shrink-0 bg-slate-50 p-4 border-r border-slate-200 flex flex-col justify-end">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ministry / Study</span>
+                </div>
+                <div className="flex-1 flex relative h-14">
+                  <div className="flex absolute top-0 left-0 right-0 h-8 border-b border-slate-200/60">
+                    {timelineMonths.map((m) => (
+                      <div key={m.name} style={{ width: `${m.widthPct}%` }} className="border-r border-slate-200 p-1 text-center bg-slate-50 flex items-center justify-center">
+                        <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{m.name}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                  <div className="absolute top-8 bottom-0 left-0 right-0">
+                    {sundays.map((s, i) => (
+                      <div key={i} style={{ left: `${s.leftPct}%` }} className="absolute h-full border-l border-slate-300 flex items-center pl-1 group/sunday">
+                        <span className="text-[8px] font-bold text-slate-400 group-hover/sunday:text-blue-500 transition-colors">{s.date}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
             
             <div className="flex-1 relative pb-10">
-              <div className="absolute top-0 bottom-0 left-64 right-0 flex pointer-events-none z-0">
-                {months.map((m, i) => (
-                  <div key={i} className="flex-1 border-r border-dashed border-slate-200/60 bg-white/50"></div>
+              <div className="absolute top-0 bottom-0 left-64 right-0 pointer-events-none z-0">
+                {sundays.map((s, i) => (
+                  <div key={i} style={{ left: `${s.leftPct}%` }} className="absolute top-0 bottom-0 border-l border-dashed border-slate-300"></div>
                 ))}
               </div>
 
