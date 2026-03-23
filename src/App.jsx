@@ -89,6 +89,8 @@ const db = getFirestore(app);
 const App = () => {
   const [user, setUser] = useState(null);
   const [studies, setStudies] = useState([]);
+  const [blackouts, setBlackouts] = useState([]);
+  const [isBlackoutModalOpen, setIsBlackoutModalOpen] = useState(false);
   const [activeStage, setActiveStage] = useState('active');
   const [viewMode, setViewMode] = useState('pipeline'); 
   const [loading, setLoading] = useState(true);
@@ -132,7 +134,16 @@ const App = () => {
       console.error("Firestore error:", err);
       setLoading(false);
     });
-    return () => unsubscribe();
+
+    const bQuery = query(collection(db, 'global_blackouts'));
+    const unSubB = onSnapshot(bQuery, (snap) => {
+      setBlackouts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    return () => {
+      unsubscribe();
+      unSubB();
+    };
   }, [user]);
 
   const studiesByStage = useMemo(() => {
@@ -283,6 +294,67 @@ const App = () => {
     );
   };
 
+  const BlackoutModal = () => {
+    const [dateText, setDateText] = useState('');
+    
+    const handleAdd = async (e) => {
+      e.preventDefault();
+      if (!dateText) return;
+      // Force to Sunday alignment
+      let d = new Date(dateText + 'T00:00:00'); // local time
+      if (d.getDay() !== 0) {
+        d.setDate(d.getDate() - d.getDay()); 
+      }
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const alignedDate = `${y}-${m}-${day}`;
+
+      try {
+        await addDoc(collection(db, 'global_blackouts'), { date: alignedDate });
+        setDateText('');
+      } catch (err) { console.error(err); }
+    };
+    
+    const handleDelete = async (id) => {
+      try {
+        await deleteDoc(doc(db, 'global_blackouts', id));
+      } catch (err) { console.error(err); }
+    };
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
+        <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-md p-8 animate-in zoom-in-95">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight leading-none">Global Blackouts</h2>
+              <p className="text-[10px] font-bold text-rose-500 uppercase tracking-widest mt-1">Stops study tracking logic</p>
+            </div>
+            <button onClick={() => setIsBlackoutModalOpen(false)} className="p-3 hover:bg-slate-100 rounded-2xl transition-all"><X size={20}/></button>
+          </div>
+          
+          <form onSubmit={handleAdd} className="flex gap-2 mb-6 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+            <input type="date" required value={dateText} onChange={e => setDateText(e.target.value)} className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-4 focus:ring-rose-100 outline-none transition-all" />
+            <button type="submit" className="bg-slate-900 text-white px-6 py-3 rounded-xl text-sm font-black hover:bg-slate-800 active:scale-95 transition-all">Add</button>
+          </form>
+          
+          <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar pr-2">
+            {blackouts.length === 0 ? (
+              <div className="p-8 text-center border-2 border-dashed border-slate-100 rounded-2xl">
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">No blackouts scheduled</p>
+              </div>
+            ) : blackouts.sort((a,b) => a.date.localeCompare(b.date)).map(b => (
+              <div key={b.id} className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-100 shadow-sm group">
+                <span className="text-sm font-bold text-slate-700 flex items-center gap-2"><Calendar size={14} className="text-slate-400"/> {b.date} (Week)</span>
+                <button onClick={() => handleDelete(b.id)} className="text-slate-300 hover:text-rose-500 hover:bg-rose-50 p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const CalendarView = () => {
     const today = new Date();
     const currentYear = today.getFullYear();
@@ -308,6 +380,13 @@ const App = () => {
       timelineMonths.push({ name: monthName, days: daysInMonth, widthPct: (daysInMonth / totalDays) * 100 });
     }
 
+    const formatDateObj = (d) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+
     // Calculate all Sundays
     const sundays = [];
     let currDate = new Date(ministryStart);
@@ -317,7 +396,15 @@ const App = () => {
     while (currDate < ministryEnd) {
       const leftOffsetDays = (currDate - ministryStart) / msPerDay;
       const leftPct = (leftOffsetDays / totalDays) * 100;
-      sundays.push({ date: currDate.getDate(), leftPct });
+      const dateStr = formatDateObj(currDate);
+      const isBlackout = blackouts.some(b => b.date === dateStr);
+      
+      sundays.push({ 
+        date: currDate.getDate(), 
+        leftPct, 
+        isBlackout,
+        widthPct: (7 / totalDays) * 100 
+      });
       currDate.setDate(currDate.getDate() + 7);
     }
     
@@ -326,12 +413,30 @@ const App = () => {
     const plottedStudies = validStudies.map(study => {
       const [y, m, d] = study.startDate.split('-');
       const sStart = new Date(y, m - 1, d);
-      const sEnd = new Date(sStart.getTime() + study.weeks * 7 * msPerDay);
+      
+      let currentIterDate = new Date(sStart);
+      let weeksToComplete = study.weeks;
+      let totalDurationDays = 0;
+      
+      while (weeksToComplete > 0 && totalDurationDays < 365 * 5) {
+        const sundayOfWeek = new Date(currentIterDate);
+        sundayOfWeek.setDate(sundayOfWeek.getDate() - sundayOfWeek.getDay());
+        
+        const isBlackout = blackouts.some(b => b.date === formatDateObj(sundayOfWeek));
+        
+        if (!isBlackout) {
+          weeksToComplete--;
+        }
+        currentIterDate.setDate(currentIterDate.getDate() + 7);
+        totalDurationDays += 7;
+      }
+      
+      const sEnd = new Date(sStart.getTime() + totalDurationDays * msPerDay);
       
       if (sEnd <= ministryStart || sStart >= ministryEnd) return null;
       
       let leftOffsetDays = (sStart - ministryStart) / msPerDay;
-      let durationDays = study.weeks * 7;
+      let durationDays = totalDurationDays;
       
       if (leftOffsetDays < 0) {
         durationDays += leftOffsetDays;
@@ -392,7 +497,12 @@ const App = () => {
             <div className="flex-1 relative pb-10">
               <div className="absolute top-0 bottom-0 left-64 right-0 pointer-events-none z-0">
                 {sundays.map((s, i) => (
-                  <div key={i} style={{ left: `${s.leftPct}%` }} className="absolute top-0 bottom-0 border-l border-dashed border-slate-300"></div>
+                  <React.Fragment key={i}>
+                    {s.isBlackout && (
+                      <div style={{ left: `${s.leftPct}%`, width: `${s.widthPct}%` }} className="absolute top-0 bottom-0 bg-slate-300/20"></div>
+                    )}
+                    <div style={{ left: `${s.leftPct}%` }} className="absolute top-0 bottom-0 border-l border-dashed border-slate-300"></div>
+                  </React.Fragment>
                 ))}
               </div>
 
@@ -483,9 +593,14 @@ const App = () => {
             </button>
           </div>
 
-          <button onClick={() => handleOpenModal()} className="bg-slate-900 text-white px-6 py-2.5 rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-slate-800 active:scale-95 transition-all shadow-xl shadow-slate-200">
-            <Plus size={18} strokeWidth={3} /> New Study
-          </button>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setIsBlackoutModalOpen(true)} className="bg-white border text-slate-700 px-5 py-2.5 rounded-2xl text-sm font-bold hover:bg-slate-50 active:scale-95 transition-all flex items-center gap-2 shadow-sm">
+               Blackouts
+            </button>
+            <button onClick={() => handleOpenModal()} className="bg-slate-900 text-white px-6 py-2.5 rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-slate-800 active:scale-95 transition-all shadow-xl shadow-slate-200">
+              <Plus size={18} strokeWidth={3} /> New Study
+            </button>
+          </div>
         </div>
       </header>
 
@@ -566,6 +681,8 @@ const App = () => {
           <CalendarView />
         )}
       </main>
+
+      {isBlackoutModalOpen && <BlackoutModal />}
 
       {/* Expanded Modal with Restored Fields */}
       {isModalOpen && (
