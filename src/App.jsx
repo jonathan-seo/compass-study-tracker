@@ -297,7 +297,7 @@ const App = () => {
           <div className="flex items-center gap-3">
             <div className="bg-blue-600 p-2.5 rounded-xl shadow-lg shadow-blue-100"><BookOpen className="text-white" size={20} /></div>
             <div className="hidden sm:block">
-              <h1 className="text-xl font-black text-slate-800 tracking-tight leading-none">Study Tracker</h1>
+              <h1 className="text-xl font-black text-slate-800 tracking-tight leading-none">Compass Study Tracker</h1>
               <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-1">Compass Community Church</p>
             </div>
           </div>
