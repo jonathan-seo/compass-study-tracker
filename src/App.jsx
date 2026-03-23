@@ -283,6 +283,132 @@ const App = () => {
     );
   };
 
+  const CalendarView = () => {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth(); // 0-11
+    const defaultStartYear = currentMonth >= 8 ? currentYear : currentYear - 1;
+    
+    const [startYear, setStartYear] = useState(defaultStartYear);
+    const endYear = startYear + 1;
+    
+    // Explicitly set the range boundary
+    const ministryStart = new Date(startYear, 8, 1);
+    const ministryEnd = new Date(endYear, 8, 1);
+    const msPerDay = 1000 * 60 * 60 * 24;
+    const totalDays = Math.round((ministryEnd - ministryStart) / msPerDay);
+    
+    const validStudies = studies.filter(s => s.startDate && s.weeks > 0);
+    
+    const plottedStudies = validStudies.map(study => {
+      const [y, m, d] = study.startDate.split('-');
+      const sStart = new Date(y, m - 1, d);
+      const sEnd = new Date(sStart.getTime() + study.weeks * 7 * msPerDay);
+      
+      if (sEnd <= ministryStart || sStart >= ministryEnd) return null;
+      
+      let leftOffsetDays = (sStart - ministryStart) / msPerDay;
+      let durationDays = study.weeks * 7;
+      
+      if (leftOffsetDays < 0) {
+        durationDays += leftOffsetDays;
+        leftOffsetDays = 0;
+      }
+      if (leftOffsetDays + durationDays > totalDays) {
+        durationDays = totalDays - leftOffsetDays;
+      }
+      
+      const leftPct = (leftOffsetDays / totalDays) * 100;
+      const widthPct = (durationDays / totalDays) * 100;
+      
+      return { ...study, leftPct, widthPct };
+    }).filter(Boolean);
+
+    const grouped = Object.values(MINISTRIES).map(ministry => ({
+      ...ministry,
+      studies: plottedStudies.filter(s => s.ministryId === ministry.id).sort((a,b) => new Date(a.startDate) - new Date(b.startDate))
+    })).filter(g => g.studies.length > 0);
+
+    const months = ['Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'];
+
+    return (
+      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm p-6 overflow-hidden flex flex-col h-[calc(100vh-160px)]">
+        <div className="flex items-center justify-between mb-6 px-2">
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Ministry Year Planner</h2>
+          <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+            <button onClick={() => setStartYear(y => y - 1)} className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-white rounded-xl transition-all shadow-sm">← {startYear - 1}-{startYear}</button>
+            <span className="px-4 py-2 text-xs font-black text-blue-600 bg-white shadow-sm rounded-xl">{startYear}-{endYear}</span>
+            <button onClick={() => setStartYear(y => y + 1)} className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-white rounded-xl transition-all shadow-sm">{startYear + 1}-{endYear + 1} →</button>
+          </div>
+        </div>
+        
+        <div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar border border-slate-100 rounded-2xl shadow-inner bg-slate-50/30">
+          <div className="min-w-[1200px] h-full flex flex-col">
+            <div className="flex sticky top-0 bg-slate-50 z-20 border-b border-slate-200 shadow-sm">
+              <div className="w-64 flex-shrink-0 bg-slate-50 p-4 border-r border-slate-200 flex items-center">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ministry / Study</span>
+              </div>
+              <div className="flex-1 flex">
+                {months.map((m) => (
+                  <div key={m} className="flex-1 border-r border-slate-200 p-3 text-center bg-slate-50">
+                    <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{m}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div className="flex-1 relative pb-10">
+              <div className="absolute top-0 bottom-0 left-64 right-0 flex pointer-events-none z-0">
+                {months.map((m, i) => (
+                  <div key={i} className="flex-1 border-r border-dashed border-slate-200/60 bg-white/50"></div>
+                ))}
+              </div>
+
+              {grouped.length === 0 ? (
+                <div className="p-16 text-center text-slate-300 font-black italic text-xl">No studies scheduled for the {startYear}-{endYear} ministry year.</div>
+              ) : (
+                grouped.map(group => (
+                  <div key={group.id} className="border-b border-slate-200 last:border-0 relative z-10 bg-white">
+                    <div className="bg-slate-100/80 px-4 py-2.5 border-b border-slate-200 sticky left-0 z-10 w-64 shadow-[1px_0_0_0_#e2e8f0] flex items-center backdrop-blur-sm">
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${group.color}`}>
+                        {group.name}
+                      </span>
+                    </div>
+                    {group.studies.map(study => (
+                      <div key={study.id} className="flex group/row hover:bg-slate-50/80 transition-colors h-14 border-b border-slate-50 last:border-0 relative">
+                        <div className="w-64 flex-shrink-0 px-4 py-2 border-r border-slate-200 bg-white group-hover/row:bg-slate-50/50 transition-colors sticky left-0 z-10 flex flex-col justify-center shadow-[1px_0_0_0_#e2e8f0]">
+                          <h4 className="text-xs font-bold text-slate-700 truncate" title={study.title}>{study.title}</h4>
+                          <span className="text-[9px] font-bold text-slate-400 mt-0.5">{study.weeks} weeks • {study.startDate}</span>
+                        </div>
+                        <div className="flex-1 relative py-2">
+                          <div 
+                            onClick={() => handleOpenModal(study)}
+                            className={`absolute top-1/2 -translate-y-1/2 h-8 rounded-xl shadow-sm border cursor-pointer hover:shadow-md hover:ring-2 ring-blue-100 hover:scale-[1.01] transition-all overflow-hidden flex items-center px-3 ${group.color.replace('bg-', 'bg-white ').replace('text-', 'text-slate-800 ')}`}
+                            style={{ 
+                              left: `${study.leftPct}%`, 
+                              width: `max(3rem, ${study.widthPct}%)`, 
+                              backgroundColor: 'white' // default to white, border gives it identity
+                            }}
+                            title={`${study.title}\nStarts: ${study.startDate}\nDuration: ${study.weeks} weeks`}
+                          >
+                            <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${group.dot}`}></div>
+                            <span className="relative text-[10px] font-bold truncate pl-2 pointer-events-none w-full">
+                              {study.title}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
@@ -313,9 +439,15 @@ const App = () => {
             </button>
             <button 
               onClick={() => setViewMode('pipeline')} 
-              className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all ${viewMode === 'pipeline' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${viewMode === 'pipeline' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
             >
               <Columns size={14} /> Pipeline View
+            </button>
+            <button 
+              onClick={() => setViewMode('calendar')} 
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${viewMode === 'calendar' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <Calendar size={14} /> Calendar View
             </button>
           </div>
 
@@ -366,7 +498,7 @@ const App = () => {
               )}
             </section>
           </div>
-        ) : (
+        ) : viewMode === 'pipeline' ? (
           <div className="flex flex-row gap-6 h-[calc(100vh-160px)] w-full overflow-x-auto lg:overflow-x-visible pb-4">
             {STAGES.map(stage => (
               <div 
@@ -398,6 +530,8 @@ const App = () => {
               </div>
             ))}
           </div>
+        ) : (
+          <CalendarView />
         )}
       </main>
 
