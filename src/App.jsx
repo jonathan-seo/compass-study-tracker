@@ -236,7 +236,7 @@ const App = () => {
       <div 
         draggable
         onDragStart={(e) => onDragStart(e, study.id)}
-        className={`group bg-white border rounded-2xl shadow-sm hover:shadow-md transition-all overflow-hidden mb-3 cursor-grab active:cursor-grabbing ${compact ? 'p-3' : 'p-5'} ${isDragging ? 'opacity-40 scale-95' : 'opacity-100'}`}
+        className={`select-none group bg-white border rounded-2xl shadow-sm hover:shadow-md transition-all overflow-hidden mb-3 cursor-grab active:cursor-grabbing ${compact ? 'p-3' : 'p-5'} ${isDragging ? 'opacity-40 scale-95' : 'opacity-100'}`}
       >
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
