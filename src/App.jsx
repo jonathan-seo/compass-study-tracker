@@ -241,7 +241,7 @@ const App = () => {
         className={`select-none group bg-white border rounded-2xl shadow-sm hover:shadow-md transition-all overflow-hidden mb-3 cursor-grab active:cursor-grabbing ${compact ? 'p-3' : 'p-5'} ${isDragging ? 'opacity-40 scale-95' : 'opacity-100'}`}
       >
         <div className="flex items-start justify-between">
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 pointer-events-none">
             <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
               {compact && <GripVertical size={10} className="text-slate-300" />}
               <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${ministry.color}`}>
@@ -257,7 +257,7 @@ const App = () => {
           </button>
         </div>
 
-        <div className="mt-2 flex flex-wrap gap-1">
+        <div className="mt-2 flex flex-wrap gap-1 pointer-events-none">
           {study.studyMaterial !== 'Not Started' && (
             <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border ${getStatusColor(study.studyMaterial)}`}>
               Material: {study.studyMaterial}
@@ -271,10 +271,10 @@ const App = () => {
         </div>
 
         {!compact && study.notes && (
-          <p className="mt-3 text-xs text-slate-500 line-clamp-3 italic whitespace-pre-wrap leading-relaxed">{study.notes}</p>
+          <p className="mt-3 text-xs text-slate-500 line-clamp-3 italic whitespace-pre-wrap leading-relaxed pointer-events-none">{study.notes}</p>
         )}
         
-        <div className="mt-3 flex items-center justify-between text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+        <div className="mt-3 flex items-center justify-between text-[10px] text-slate-400 font-bold uppercase tracking-wider pointer-events-none">
           <span className="flex items-center gap-1"><MapPin size={10} /> {study.location}</span>
           {!compact && <span className="flex items-center gap-1"><Calendar size={10}/> {study.startDate}</span>}
           {compact && study.weeks && <span className="flex items-center gap-1"><Clock size={10}/> {study.weeks}w</span>}
