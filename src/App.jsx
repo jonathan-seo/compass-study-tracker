@@ -498,8 +498,8 @@ const App = () => {
           <div className="min-w-[1200px] h-full flex flex-col">
             <div className="flex flex-col sticky top-0 bg-white z-20 border-b border-slate-200 shadow-sm">
               <div className="flex">
-                <div className="w-64 flex-shrink-0 bg-slate-50 p-3 border-r border-slate-200 flex flex-col justify-end">
-                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Ministry / Study</span>
+                <div className="w-28 md:w-64 flex-shrink-0 bg-slate-50 p-3 border-r border-slate-200 flex flex-col justify-end">
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide truncate">Ministry / Study</span>
                 </div>
                 <div className="flex-1 flex relative h-12">
                   <div className="flex absolute top-0 left-0 right-0 h-7 border-b border-slate-200 bg-slate-50">
@@ -521,7 +521,7 @@ const App = () => {
             </div>
             
             <div className="flex-1 relative pb-10 bg-slate-50/30">
-              <div className="absolute top-0 bottom-0 left-64 right-0 pointer-events-none z-0">
+              <div className="absolute top-0 bottom-0 left-28 md:left-64 right-0 pointer-events-none z-0">
                 {sundays.map((s, i) => (
                   <React.Fragment key={i}>
                     {s.isBlackout && (
@@ -537,14 +537,14 @@ const App = () => {
               ) : (
                 grouped.map(group => (
                   <div key={group.id} className="border-b border-slate-200 last:border-0 relative z-10">
-                    <div className="bg-slate-100 px-3 py-2 border-b border-slate-200 sticky left-0 z-10 w-64 shadow-[1px_0_0_0_#e2e8f0] flex items-center">
+                    <div className="bg-slate-100 px-3 py-2 border-b border-slate-200 sticky left-0 z-10 w-28 md:w-64 shadow-[1px_0_0_0_#e2e8f0] flex items-center overflow-hidden">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide border ${group.color}`}>
                         {group.name}
                       </span>
                     </div>
                     {group.studies.map(study => (
                       <div key={study.id} className="flex group/row hover:bg-slate-50 transition-colors h-14 border-b border-slate-100 last:border-0 relative">
-                        <div className="w-64 flex-shrink-0 px-3 py-2 border-r border-slate-200 bg-white group-hover/row:bg-slate-50 transition-colors sticky left-0 z-10 flex flex-col justify-center shadow-[1px_0_0_0_#e2e8f0]">
+                        <div className="w-28 md:w-64 flex-shrink-0 px-3 py-2 border-r border-slate-200 bg-white group-hover/row:bg-slate-50 transition-colors sticky left-0 z-10 flex flex-col justify-center shadow-[1px_0_0_0_#e2e8f0] overflow-hidden">
                           <div className="flex items-center gap-2 pr-2">
                             <h4 className="text-sm font-medium text-slate-800 truncate" title={study.title}>{study.title}</h4>
                             {(() => {
@@ -607,37 +607,44 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-blue-100 font-sans">
-      <header className="bg-white border-b border-slate-200 px-6 py-3 sticky top-0 z-30 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="bg-[#2b5278] p-2 rounded shadow-sm"><BookOpen className="text-white" size={18} /></div>
-          <div className="hidden sm:block">
-            <h1 className="text-lg font-semibold text-slate-800 leading-tight">Compass Study Tracker</h1>
-            <p className="text-[11px] text-slate-500 mt-0.5">Compass Community Church</p>
+      <header className="bg-white border-b border-slate-200 px-4 md:px-6 py-3 sticky top-0 z-30 flex flex-wrap lg:flex-nowrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3 w-full lg:w-auto justify-between lg:justify-start">
+          <div className="flex items-center gap-3">
+            <div className="bg-[#2b5278] p-2 rounded shadow-sm"><BookOpen className="text-white" size={18} /></div>
+            <div>
+              <h1 className="text-base md:text-lg font-semibold text-slate-800 leading-tight">Compass Study Tracker</h1>
+              <p className="text-[10px] md:text-[11px] text-slate-500 mt-0.5">Compass Community Church</p>
+            </div>
+          </div>
+          <button onClick={() => handleOpenModal()} className="lg:hidden bg-[#2b5278] text-white p-2 rounded-md font-medium flex items-center justify-center hover:bg-[#1f3f5e] shadow-sm active:scale-95 transition-all">
+            <Plus size={18} strokeWidth={2.5} />
+          </button>
+        </div>
+
+        <div className="w-full lg:w-auto overflow-x-auto scrollbar-hide py-1">
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-md border border-slate-200 min-w-max">
+            <button 
+              onClick={() => setViewMode('detail')} 
+              className={`flex items-center gap-2 px-3 md:px-4 py-1.5 rounded text-sm font-medium transition-colors ${viewMode === 'detail' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
+            >
+              <LayoutGrid size={16} /> Detail
+            </button>
+            <button 
+              onClick={() => setViewMode('pipeline')} 
+              className={`flex items-center gap-2 px-3 md:px-4 py-1.5 rounded text-sm font-medium transition-colors ${viewMode === 'pipeline' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
+            >
+              <Columns size={16} /> Pipeline
+            </button>
+            <button 
+              onClick={() => setViewMode('calendar')} 
+              className={`flex items-center gap-2 px-3 md:px-4 py-1.5 rounded text-sm font-medium transition-colors ${viewMode === 'calendar' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
+            >
+              <Calendar size={16} /> Calendar
+            </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-md border border-slate-200">
-          <button 
-            onClick={() => setViewMode('detail')} 
-            className={`flex items-center gap-2 px-4 py-1.5 rounded text-sm font-medium transition-colors ${viewMode === 'detail' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
-          >
-            <LayoutGrid size={16} /> Detail
-          </button>
-          <button 
-            onClick={() => setViewMode('pipeline')} 
-            className={`flex items-center gap-2 px-4 py-1.5 rounded text-sm font-medium transition-colors ${viewMode === 'pipeline' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
-          >
-            <Columns size={16} /> Pipeline
-          </button>
-          <button 
-            onClick={() => setViewMode('calendar')} 
-            className={`flex items-center gap-2 px-4 py-1.5 rounded text-sm font-medium transition-colors ${viewMode === 'calendar' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
-          >
-            <Calendar size={16} /> Calendar
-          </button>
-        </div>
-
-        <div className="flex items-center gap-3">
+        <div className="hidden lg:flex items-center gap-3">
           <button onClick={() => setIsBlackoutModalOpen(true)} className="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-slate-50 active:scale-95 transition-all shadow-sm">
              Manage Blackouts
           </button>
@@ -689,14 +696,14 @@ const App = () => {
             </section>
           </div>
         ) : viewMode === 'pipeline' ? (
-          <div className="flex flex-row gap-4 h-[calc(100vh-140px)] w-full overflow-x-auto lg:overflow-x-visible pb-4">
+          <div className="flex flex-row gap-4 h-[calc(100vh-140px)] w-full overflow-x-auto lg:overflow-x-visible pb-4 snap-x snap-mandatory scroll-p-4">
             {STAGES.map(stage => (
               <div 
                 key={stage.id} 
                 onDragOver={(e) => onDragOver(e, stage.id)}
                 onDragLeave={() => setDragOverStage(null)}
                 onDrop={(e) => onDrop(e, stage.id)}
-                className={`flex-1 min-w-[360px] flex flex-col rounded-lg transition-all duration-200 border ${dragOverStage === stage.id ? 'bg-blue-50/50 border-blue-300 ring-2 ring-blue-200' : 'bg-slate-100/50 border-slate-200'}`}
+                className={`w-[85vw] md:w-auto md:flex-1 md:min-w-[360px] flex-shrink-0 snap-center flex flex-col rounded-lg transition-all duration-200 border ${dragOverStage === stage.id ? 'bg-blue-50/50 border-blue-300 ring-2 ring-blue-200' : 'bg-slate-100/50 border-slate-200'}`}
               >
                 <div className="flex items-center justify-between mb-3 px-4 py-3 bg-white rounded-t-lg border-b border-slate-200 shadow-sm">
                   <h4 className="text-sm font-semibold text-slate-800 flex items-center gap-2 truncate">
