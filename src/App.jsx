@@ -119,6 +119,7 @@ const App = () => {
     studyMaterial: 'Not Started',
     physicalResources: 'Not required',
     digitalResources: 'Not required',
+    imageUrl: '',
     resourcesObtained: false,
     websiteUpdated: false,
     liveTracking: 'Not started',
@@ -262,37 +263,41 @@ const App = () => {
         draggable
         onDragStart={(e) => onDragStart(e, study.id)}
         onDragEnd={() => setDraggedId(null)}
-        className={`select-none group bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow transition-all overflow-hidden mb-2 cursor-grab active:cursor-grabbing ${compact ? 'p-4' : 'p-5'} ${isDragging ? 'opacity-40 scale-95' : 'opacity-100'}`}
+        className={`select-none group bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow transition-all overflow-hidden mb-2 cursor-grab active:cursor-grabbing flex gap-3 ${compact ? 'p-4' : 'p-5'} ${isDragging ? 'opacity-40 scale-95' : 'opacity-100'}`}
       >
-        <div className="flex items-start justify-between">
-          <div className="flex-1 min-w-0 pointer-events-none">
-            <div className="flex items-center gap-1.5 mb-2 flex-wrap">
-              {compact && <GripVertical size={14} className="text-slate-300" />}
-              <span className={`px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide border ${ministry.color}`}>
-                {ministry.name}
-              </span>
+        {study.imageUrl && (
+          <img src={study.imageUrl} alt="Cover" className={`object-cover border border-slate-100 shadow-sm flex-shrink-0 rounded bg-slate-50 ${compact ? 'w-12 h-16' : 'w-16 h-24'}`} />
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between">
+            <div className="flex-1 min-w-0 pointer-events-none">
+              <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                {compact && <GripVertical size={14} className="text-slate-300" />}
+                <span className={`px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide border ${ministry.color}`}>
+                  {ministry.name}
+                </span>
+              </div>
+              <h3 className={`font-semibold text-slate-800 leading-tight truncate ${!compact ? 'text-lg' : 'text-sm'}`}>
+                {study.title}
+              </h3>
+              {(() => {
+                const warnings = getStudyWarnings(study);
+                return (warnings.missingResources || warnings.missingPromotion) && (
+                  <div className="flex flex-col gap-1 mt-2">
+                    {warnings.missingResources && (
+                      <span className="flex items-center gap-1 text-[10px] font-semibold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md w-fit shadow-sm"><AlertTriangle size={12} /> Needs Resources</span>
+                    )}
+                    {warnings.missingPromotion && (
+                      <span className="flex items-center gap-1 text-[10px] font-semibold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md w-fit shadow-sm"><AlertTriangle size={12} /> Needs Promo/Web</span>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
-            <h3 className={`font-semibold text-slate-800 leading-tight truncate ${!compact ? 'text-lg' : 'text-sm'}`}>
-              {study.title}
-            </h3>
-            {(() => {
-              const warnings = getStudyWarnings(study);
-              return (warnings.missingResources || warnings.missingPromotion) && (
-                <div className="flex flex-col gap-1 mt-2">
-                  {warnings.missingResources && (
-                    <span className="flex items-center gap-1 text-[9px] font-black uppercase text-red-600 bg-red-50 border border-red-200 px-2 py-1 rounded w-fit tracking-wider shadow-sm"><AlertTriangle size={10} /> Needs Resources</span>
-                  )}
-                  {warnings.missingPromotion && (
-                    <span className="flex items-center gap-1 text-[9px] font-black uppercase text-red-600 bg-red-50 border border-red-200 px-2 py-1 rounded w-fit tracking-wider shadow-sm"><AlertTriangle size={10} /> Needs Promo/Web</span>
-                  )}
-                </div>
-              );
-            })()}
+            <button onClick={() => handleOpenModal(study)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md opacity-0 group-hover:opacity-100 transition-all">
+              <MoreVertical size={16} />
+            </button>
           </div>
-          <button onClick={() => handleOpenModal(study)} className="p-1 text-slate-300 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
-            <MoreVertical size={!compact ? 18 : 14} />
-          </button>
-        </div>
 
         <div className="mt-2 flex flex-wrap gap-1 pointer-events-none">
           {study.studyMaterial !== 'Not Started' && (
@@ -756,9 +761,15 @@ const App = () => {
                   <h3 className="text-xs font-black uppercase tracking-[0.2em]">General Details</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="md:col-span-2">
-                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Study Title</label>
-                    <input required className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-xl focus:ring-4 focus:ring-blue-100 focus:bg-white outline-none transition-all" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+                  <div className="md:col-span-2 flex flex-col md:flex-row gap-6">
+                    <div className="flex-1">
+                      <label className="block text-xs font-semibold text-slate-500 mb-1 ml-1">Study Title</label>
+                      <input required className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 font-semibold text-lg focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all shadow-sm" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+                    </div>
+                    <div className="md:w-1/3">
+                      <label className="block text-xs font-semibold text-slate-500 mb-1 ml-1">Cover Image URL (Optional)</label>
+                      <input type="url" placeholder="Paste image address..." className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all shadow-sm" value={formData.imageUrl || ''} onChange={e => setFormData({...formData, imageUrl: e.target.value})} />
+                    </div>
                   </div>
                   <div>
                     <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Ministry Area</label>
