@@ -263,64 +263,68 @@ const App = () => {
         draggable
         onDragStart={(e) => onDragStart(e, study.id)}
         onDragEnd={() => setDraggedId(null)}
-        className={`select-none group bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow transition-all overflow-hidden mb-2 cursor-grab active:cursor-grabbing flex gap-3 ${compact ? 'p-4' : 'p-5'} ${isDragging ? 'opacity-40 scale-95' : 'opacity-100'}`}
+        className={`select-none group bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow transition-all overflow-hidden mb-2 cursor-grab active:cursor-grabbing flex gap-3 md:gap-4 ${compact ? 'p-4' : 'p-6 lg:p-8'} ${isDragging ? 'opacity-40 scale-95' : 'opacity-100'}`}
       >
         {study.imageUrl && (
-          <img src={study.imageUrl} alt="Cover" className={`object-cover border border-slate-100 shadow-sm flex-shrink-0 rounded bg-slate-50 ${compact ? 'w-12 h-16' : 'w-16 h-24'}`} />
+          <img src={study.imageUrl} alt="Cover" className={`object-cover border border-slate-100 shadow-sm flex-shrink-0 rounded bg-slate-50 ${compact ? 'w-12 h-16' : 'w-24 h-36 md:w-32 md:h-48'}`} />
         )}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between">
-            <div className="flex-1 min-w-0 pointer-events-none">
-              <div className="flex items-center gap-1.5 mb-2 flex-wrap">
-                {compact && <GripVertical size={14} className="text-slate-300" />}
-                <span className={`px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide border ${ministry.color}`}>
-                  {ministry.name}
-                </span>
+        <div className="flex-1 min-w-0 flex flex-col h-full">
+          <div>
+            <div className="flex items-start justify-between">
+              <div className="flex-1 min-w-0 pointer-events-none">
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  {compact && <GripVertical size={14} className="text-slate-300" />}
+                  <span className={`px-2 py-0.5 rounded font-semibold uppercase tracking-wide border ${ministry.color} ${compact ? 'text-[10px]' : 'text-xs'}`}>
+                    {ministry.name}
+                  </span>
+                </div>
+                <h3 className={`font-semibold text-slate-800 leading-tight ${compact ? 'truncate text-sm' : 'line-clamp-2 text-xl md:text-2xl mb-1'}`}>
+                  {study.title}
+                </h3>
+                {(() => {
+                  const warnings = getStudyWarnings(study);
+                  return (warnings.missingResources || warnings.missingPromotion) && (
+                    <div className={`flex flex-col gap-1.5 mt-2 ${!compact ? 'md:flex-row' : ''}`}>
+                      {warnings.missingResources && (
+                        <span className={`flex items-center gap-1 font-semibold text-red-700 bg-red-50 border border-red-200 rounded-md w-fit shadow-sm ${compact ? 'text-[10px] px-2 py-0.5' : 'text-xs px-3 py-1'}`}><AlertTriangle size={compact ? 12 : 14} /> Needs Resources</span>
+                      )}
+                      {warnings.missingPromotion && (
+                        <span className={`flex items-center gap-1 font-semibold text-red-700 bg-red-50 border border-red-200 rounded-md w-fit shadow-sm ${compact ? 'text-[10px] px-2 py-0.5' : 'text-xs px-3 py-1'}`}><AlertTriangle size={compact ? 12 : 14} /> Needs Promo/Web</span>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
-              <h3 className={`font-semibold text-slate-800 leading-tight truncate ${!compact ? 'text-lg' : 'text-sm'}`}>
-                {study.title}
-              </h3>
-              {(() => {
-                const warnings = getStudyWarnings(study);
-                return (warnings.missingResources || warnings.missingPromotion) && (
-                  <div className="flex flex-col gap-1 mt-2">
-                    {warnings.missingResources && (
-                      <span className="flex items-center gap-1 text-[10px] font-semibold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md w-fit shadow-sm"><AlertTriangle size={12} /> Needs Resources</span>
-                    )}
-                    {warnings.missingPromotion && (
-                      <span className="flex items-center gap-1 text-[10px] font-semibold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md w-fit shadow-sm"><AlertTriangle size={12} /> Needs Promo/Web</span>
-                    )}
-                  </div>
-                );
-              })()}
+              <button onClick={() => handleOpenModal(study)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md opacity-0 group-hover:opacity-100 transition-all">
+                <MoreVertical size={compact ? 16 : 20} />
+              </button>
             </div>
-            <button onClick={() => handleOpenModal(study)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md opacity-0 group-hover:opacity-100 transition-all">
-              <MoreVertical size={16} />
-            </button>
+
+            <div className={`mt-3 flex flex-wrap pointer-events-none ${compact ? 'gap-1' : 'gap-2'}`}>
+              {study.studyMaterial !== 'Not Started' && (
+                <span className={`font-bold rounded border ${getStatusColor(study.studyMaterial)} ${compact ? 'text-[8px] px-1.5 py-0.5 mt-1' : 'text-[10px] lg:text-xs px-2.5 py-1'}`}>
+                  Material: {study.studyMaterial}
+                </span>
+              )}
+              {study.physicalResources !== 'Not required' && (
+                <span className={`font-bold rounded border ${getStatusColor(study.physicalResources)} ${compact ? 'text-[8px] px-1.5 py-0.5 mt-1' : 'text-[10px] lg:text-xs px-2.5 py-1'}`}>
+                  Resources: {study.physicalResources}
+                </span>
+              )}
+            </div>
+
+            {!compact && study.notes && (
+              <p className="mt-4 text-sm text-slate-500 line-clamp-4 italic whitespace-pre-wrap leading-relaxed pointer-events-none block">{study.notes}</p>
+            )}
           </div>
-
-        <div className="mt-2 flex flex-wrap gap-1 pointer-events-none">
-          {study.studyMaterial !== 'Not Started' && (
-            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border ${getStatusColor(study.studyMaterial)}`}>
-              Material: {study.studyMaterial}
-            </span>
-          )}
-          {study.physicalResources !== 'Not required' && (
-            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border ${getStatusColor(study.physicalResources)}`}>
-              Resources: {study.physicalResources}
-            </span>
-          )}
-        </div>
-
-        {!compact && study.notes && (
-          <p className="mt-3 text-xs text-slate-500 line-clamp-3 italic whitespace-pre-wrap leading-relaxed pointer-events-none">{study.notes}</p>
-        )}
-        
-        <div className="mt-3 flex items-center justify-between text-[10px] text-slate-400 font-bold uppercase tracking-wider pointer-events-none">
-          <span className="flex items-center gap-1"><MapPin size={10} /> {study.location}</span>
-          {!compact && <span className="flex items-center gap-1"><Calendar size={10}/> {study.startDate}</span>}
-          {compact && study.weeks && <span className="flex items-center gap-1"><Clock size={10}/> {study.weeks}w</span>}
-        </div>
+          
+          <div className="mt-auto pt-4">
+            <div className={`flex items-center justify-between font-bold uppercase tracking-wider pointer-events-none text-slate-400 ${compact ? 'text-[10px]' : 'text-xs pt-4 border-t border-slate-100'}`}>
+              <span className="flex items-center gap-1.5"><MapPin size={compact ? 10 : 14} /> {study.location}</span>
+              {!compact && <span className="flex items-center gap-1.5"><Calendar size={14}/> {study.startDate}</span>}
+              {compact && study.weeks && <span className="flex items-center gap-1.5"><Clock size={10}/> {study.weeks}w</span>}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -693,7 +697,7 @@ const App = () => {
                   No active studies in this phase.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
                   {(studiesByStage[activeStage] || []).map(study => (
                     <StudyCard key={study.id} study={study} />
                   ))}
