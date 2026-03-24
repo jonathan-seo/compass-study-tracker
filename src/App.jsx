@@ -252,9 +252,9 @@ const App = () => {
     const isDragging = draggedId === study.id;
     
     const getStatusColor = (val) => {
-      if (val?.includes('Approved') || val?.includes('available') || val?.includes('distributed')) return 'text-emerald-600 bg-emerald-50 border-emerald-100';
-      if (val?.includes('Required') || val?.includes('Not Started') || val?.includes('Request')) return 'text-rose-600 bg-rose-50 border-rose-100';
-      return 'text-amber-600 bg-amber-50 border-amber-100';
+      if (val?.includes('Approved') || val?.includes('available') || val?.includes('distributed')) return 'text-emerald-700 bg-emerald-50 border-emerald-200';
+      if (val?.includes('Required') || val?.includes('Not Started') || val?.includes('Request')) return 'text-rose-700 bg-rose-50 border-rose-200';
+      return 'text-amber-700 bg-amber-50 border-amber-200';
     };
 
     return (
@@ -262,17 +262,17 @@ const App = () => {
         draggable
         onDragStart={(e) => onDragStart(e, study.id)}
         onDragEnd={() => setDraggedId(null)}
-        className={`select-none group bg-white border rounded-2xl shadow-sm hover:shadow-md transition-all overflow-hidden mb-3 cursor-grab active:cursor-grabbing ${compact ? 'p-3' : 'p-5'} ${isDragging ? 'opacity-40 scale-95' : 'opacity-100'}`}
+        className={`select-none group bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow transition-all overflow-hidden mb-2 cursor-grab active:cursor-grabbing ${compact ? 'p-4' : 'p-5'} ${isDragging ? 'opacity-40 scale-95' : 'opacity-100'}`}
       >
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0 pointer-events-none">
-            <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-              {compact && <GripVertical size={10} className="text-slate-300" />}
-              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${ministry.color}`}>
+            <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+              {compact && <GripVertical size={14} className="text-slate-300" />}
+              <span className={`px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide border ${ministry.color}`}>
                 {ministry.name}
               </span>
             </div>
-            <h3 className={`font-bold text-slate-800 leading-tight truncate ${!compact ? 'text-base' : 'text-[12px]'}`}>
+            <h3 className={`font-semibold text-slate-800 leading-tight truncate ${!compact ? 'text-lg' : 'text-sm'}`}>
               {study.title}
             </h3>
             {(() => {
@@ -349,30 +349,30 @@ const App = () => {
     };
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
-        <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-md p-8 animate-in zoom-in-95">
-          <div className="flex justify-between items-center mb-6">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 animate-in zoom-in-95">
+          <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
             <div>
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight leading-none">Global Blackouts</h2>
-              <p className="text-[10px] font-bold text-rose-500 uppercase tracking-widest mt-1">Stops study tracking logic</p>
+              <h2 className="text-xl font-semibold text-slate-800">Global Blackouts</h2>
+              <p className="text-xs text-slate-500 mt-1">Pauses study tracking logic automatically</p>
             </div>
-            <button onClick={() => setIsBlackoutModalOpen(false)} className="p-3 hover:bg-slate-100 rounded-2xl transition-all"><X size={20}/></button>
+            <button onClick={() => setIsBlackoutModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-all"><X size={20}/></button>
           </div>
           
-          <form onSubmit={handleAdd} className="flex gap-2 mb-6 bg-slate-50 p-3 rounded-2xl border border-slate-100">
-            <input type="date" required value={dateText} onChange={e => setDateText(e.target.value)} className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-4 focus:ring-rose-100 outline-none transition-all" />
-            <button type="submit" className="bg-slate-900 text-white px-6 py-3 rounded-xl text-sm font-black hover:bg-slate-800 active:scale-95 transition-all">Add</button>
+          <form onSubmit={handleAdd} className="flex gap-3 mb-6">
+            <input type="date" required value={dateText} onChange={e => setDateText(e.target.value)} className="flex-1 bg-white border border-slate-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" />
+            <button type="submit" className="bg-[#2b5278] text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-[#1f3f5e] active:scale-95 transition-all shadow-sm">Add Blackout</button>
           </form>
           
           <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar pr-2">
             {blackouts.length === 0 ? (
-              <div className="p-8 text-center border-2 border-dashed border-slate-100 rounded-2xl">
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">No blackouts scheduled</p>
+              <div className="p-8 text-center border border-dashed border-slate-200 rounded-lg">
+                <p className="text-sm text-slate-500 font-medium">No blackouts scheduled</p>
               </div>
             ) : blackouts.sort((a,b) => a.date.localeCompare(b.date)).map(b => (
-              <div key={b.id} className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-100 shadow-sm group">
-                <span className="text-sm font-bold text-slate-700 flex items-center gap-2"><Calendar size={14} className="text-slate-400"/> {b.date} (Week)</span>
-                <button onClick={() => handleDelete(b.id)} className="text-slate-300 hover:text-rose-500 hover:bg-rose-50 p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button>
+              <div key={b.id} className="flex justify-between items-center bg-white p-3 rounded-lg border border-slate-200 shadow-sm group">
+                <span className="text-sm font-medium text-slate-700 flex items-center gap-2"><Calendar size={16} className="text-slate-400"/> {b.date} (Week)</span>
+                <button onClick={() => handleDelete(b.id)} className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-md transition-all opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button>
               </div>
             ))}
           </div>
@@ -484,35 +484,35 @@ const App = () => {
     })).filter(g => g.studies.length > 0);
 
     return (
-      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm p-6 overflow-hidden flex flex-col h-[calc(100vh-160px)]">
-        <div className="flex items-center justify-between mb-6 px-2">
-          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Ministry Year Planner</h2>
-          <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
-            <button onClick={() => setStartYear(y => y - 1)} className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-white rounded-xl transition-all shadow-sm">← {startYear - 1}-{startYear}</button>
-            <span className="px-4 py-2 text-xs font-black text-blue-600 bg-white shadow-sm rounded-xl">{startYear}-{endYear}</span>
-            <button onClick={() => setStartYear(y => y + 1)} className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-white rounded-xl transition-all shadow-sm">{startYear + 1}-{endYear + 1} →</button>
+      <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 overflow-hidden flex flex-col h-[calc(100vh-140px)]">
+        <div className="flex items-center justify-between mb-4 px-2">
+          <h2 className="text-xl font-semibold text-slate-800">Ministry Year Planner</h2>
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-md border border-slate-200">
+            <button onClick={() => setStartYear(y => y - 1)} className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-white rounded transition-all">← {startYear - 1}-{startYear}</button>
+            <span className="px-3 py-1.5 text-xs font-semibold text-[#2b5278] bg-white shadow-sm rounded">{startYear}-{endYear}</span>
+            <button onClick={() => setStartYear(y => y + 1)} className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-white rounded transition-all">{startYear + 1}-{endYear + 1} →</button>
           </div>
         </div>
         
-        <div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar border border-slate-100 rounded-2xl shadow-inner bg-slate-50/30">
+        <div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar border border-slate-200 rounded-md bg-white">
           <div className="min-w-[1200px] h-full flex flex-col">
-            <div className="flex flex-col sticky top-0 bg-slate-50 z-20 border-b border-slate-200 shadow-sm">
+            <div className="flex flex-col sticky top-0 bg-white z-20 border-b border-slate-200 shadow-sm">
               <div className="flex">
-                <div className="w-64 flex-shrink-0 bg-slate-50 p-4 border-r border-slate-200 flex flex-col justify-end">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ministry / Study</span>
+                <div className="w-64 flex-shrink-0 bg-slate-50 p-3 border-r border-slate-200 flex flex-col justify-end">
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Ministry / Study</span>
                 </div>
-                <div className="flex-1 flex relative h-14">
-                  <div className="flex absolute top-0 left-0 right-0 h-8 border-b border-slate-200/60">
+                <div className="flex-1 flex relative h-12">
+                  <div className="flex absolute top-0 left-0 right-0 h-7 border-b border-slate-200 bg-slate-50">
                     {timelineMonths.map((m) => (
-                      <div key={m.name} style={{ width: `${m.widthPct}%` }} className="border-r border-slate-200 p-1 text-center bg-slate-50 flex items-center justify-center">
-                        <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{m.name}</span>
+                      <div key={m.name} style={{ width: `${m.widthPct}%` }} className="border-r border-slate-200 p-1 text-center flex items-center justify-center">
+                        <span className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">{m.name}</span>
                       </div>
                     ))}
                   </div>
-                  <div className="absolute top-8 bottom-0 left-0 right-0">
+                  <div className="absolute top-7 bottom-0 left-0 right-0 bg-white">
                     {sundays.map((s, i) => (
-                      <div key={i} style={{ left: `${s.leftPct}%` }} className="absolute h-full border-l border-slate-300 flex items-center pl-1 group/sunday">
-                        <span className="text-[8px] font-bold text-slate-400 group-hover/sunday:text-blue-500 transition-colors">{s.date}</span>
+                      <div key={i} style={{ left: `${s.leftPct}%` }} className="absolute h-full border-l border-slate-200 flex items-center pl-1 group/sunday">
+                        <span className="text-[9px] font-medium text-slate-400 group-hover/sunday:text-blue-600 transition-colors">{s.date}</span>
                       </div>
                     ))}
                   </div>
@@ -520,33 +520,33 @@ const App = () => {
               </div>
             </div>
             
-            <div className="flex-1 relative pb-10">
+            <div className="flex-1 relative pb-10 bg-slate-50/30">
               <div className="absolute top-0 bottom-0 left-64 right-0 pointer-events-none z-0">
                 {sundays.map((s, i) => (
                   <React.Fragment key={i}>
                     {s.isBlackout && (
-                      <div style={{ left: `${s.leftPct}%`, width: `${s.widthPct}%` }} className="absolute top-0 bottom-0 bg-slate-300/20"></div>
+                      <div style={{ left: `${s.leftPct}%`, width: `${s.widthPct}%` }} className="absolute top-0 bottom-0 bg-slate-200/50"></div>
                     )}
-                    <div style={{ left: `${s.leftPct}%` }} className="absolute top-0 bottom-0 border-l border-dashed border-slate-300"></div>
+                    <div style={{ left: `${s.leftPct}%` }} className="absolute top-0 bottom-0 border-l border-dashed border-slate-200"></div>
                   </React.Fragment>
                 ))}
               </div>
 
               {grouped.length === 0 ? (
-                <div className="p-16 text-center text-slate-300 font-black italic text-xl">No studies scheduled for the {startYear}-{endYear} ministry year.</div>
+                <div className="p-16 text-center text-slate-400 font-medium text-lg">No studies scheduled for the {startYear}-{endYear} ministry year.</div>
               ) : (
                 grouped.map(group => (
                   <div key={group.id} className="border-b border-slate-200 last:border-0 relative z-10">
-                    <div className="bg-slate-100/80 px-4 py-2.5 border-b border-slate-200 sticky left-0 z-10 w-64 shadow-[1px_0_0_0_#e2e8f0] flex items-center backdrop-blur-sm">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${group.color}`}>
+                    <div className="bg-slate-100 px-3 py-2 border-b border-slate-200 sticky left-0 z-10 w-64 shadow-[1px_0_0_0_#e2e8f0] flex items-center">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide border ${group.color}`}>
                         {group.name}
                       </span>
                     </div>
                     {group.studies.map(study => (
-                      <div key={study.id} className="flex group/row hover:bg-slate-50/80 transition-colors h-14 border-b border-slate-50 last:border-0 relative">
-                        <div className="w-64 flex-shrink-0 px-4 py-2 border-r border-slate-200 bg-white group-hover/row:bg-slate-50/50 transition-colors sticky left-0 z-10 flex flex-col justify-center shadow-[1px_0_0_0_#e2e8f0]">
+                      <div key={study.id} className="flex group/row hover:bg-slate-50 transition-colors h-14 border-b border-slate-100 last:border-0 relative">
+                        <div className="w-64 flex-shrink-0 px-3 py-2 border-r border-slate-200 bg-white group-hover/row:bg-slate-50 transition-colors sticky left-0 z-10 flex flex-col justify-center shadow-[1px_0_0_0_#e2e8f0]">
                           <div className="flex items-center gap-2 pr-2">
-                            <h4 className="text-xs font-bold text-slate-700 truncate" title={study.title}>{study.title}</h4>
+                            <h4 className="text-sm font-medium text-slate-800 truncate" title={study.title}>{study.title}</h4>
                             {(() => {
                               const warnings = getStudyWarnings(study);
                               return (warnings.missingResources || warnings.missingPromotion) && (
@@ -554,14 +554,14 @@ const App = () => {
                               );
                             })()}
                           </div>
-                          <div className="flex items-center gap-1 mt-1 flex-wrap">
-                            <span className="text-[9px] font-bold text-slate-400">{study.weeks} weeks • {study.startDate}</span>
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            <span className="text-[10px] text-slate-500">{study.weeks} weeks • {study.startDate}</span>
                             {(() => {
                               const warnings = getStudyWarnings(study);
                               return (warnings.missingResources || warnings.missingPromotion) && (
                                 <div className="flex gap-1">
-                                  {warnings.missingResources && <span className="text-[8px] font-bold bg-red-100 text-red-700 px-1 py-0.5 rounded leading-none border border-red-200">NO RES</span>}
-                                  {warnings.missingPromotion && <span className="text-[8px] font-bold bg-red-100 text-red-700 px-1 py-0.5 rounded leading-none border border-red-200">NO PROMO</span>}
+                                  {warnings.missingResources && <span className="text-[9px] font-medium bg-red-50 text-red-600 px-1 rounded border border-red-200">NO RES</span>}
+                                  {warnings.missingPromotion && <span className="text-[9px] font-medium bg-red-50 text-red-600 px-1 rounded border border-red-200">NO PROMO</span>}
                                 </div>
                               );
                             })()}
@@ -570,16 +570,16 @@ const App = () => {
                         <div className="flex-1 relative py-2">
                           <div 
                             onClick={() => handleOpenModal(study)}
-                            className={`absolute top-1/2 -translate-y-1/2 h-8 rounded-xl shadow-sm border cursor-pointer hover:shadow-md hover:ring-2 ring-blue-100 hover:scale-[1.01] transition-all overflow-hidden flex items-center px-3 ${group.color.replace('bg-', 'bg-white ').replace('text-', 'text-slate-800 ')}`}
+                            className={`absolute top-1/2 -translate-y-1/2 h-7 rounded shadow-sm border cursor-pointer hover:shadow hover:ring-2 ring-blue-200 transition-all overflow-hidden flex items-center px-2 ${group.color.replace('bg-', 'bg-white ').replace('text-', 'text-slate-800 ')}`}
                             style={{ 
                               left: `${study.leftPct}%`, 
-                              width: `max(3rem, ${study.widthPct}%)`, 
-                              backgroundColor: 'white' // default to white, border gives it identity
+                              width: `max(4rem, ${study.widthPct}%)`, 
+                              backgroundColor: 'white' 
                             }}
                             title={`${study.title}\nStarts: ${study.startDate}\nDuration: ${study.weeks} weeks`}
                           >
-                            <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${group.dot}`}></div>
-                            <span className="relative text-[10px] font-bold truncate pl-2 pointer-events-none w-full">
+                            <div className={`absolute left-0 top-0 bottom-0 w-1 ${group.dot}`}></div>
+                            <span className="relative text-[11px] font-medium truncate pl-1.5 pointer-events-none w-full text-slate-700">
                               {study.title}
                             </span>
                           </div>
@@ -606,46 +606,44 @@ const App = () => {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-blue-100">
-      <header className="bg-white border-b px-8 py-4 sticky top-0 z-30 shadow-sm">
-        <div className="w-full mx-auto flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-600 p-2.5 rounded-xl shadow-lg shadow-blue-100"><BookOpen className="text-white" size={20} /></div>
-            <div className="hidden sm:block">
-              <h1 className="text-xl font-black text-slate-800 tracking-tight leading-none">Compass Study Tracker</h1>
-              <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-1">Compass Community Church</p>
-            </div>
+    <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-blue-100 font-sans">
+      <header className="bg-white border-b border-slate-200 px-6 py-3 sticky top-0 z-30 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="bg-[#2b5278] p-2 rounded shadow-sm"><BookOpen className="text-white" size={18} /></div>
+          <div className="hidden sm:block">
+            <h1 className="text-lg font-semibold text-slate-800 leading-tight">Compass Study Tracker</h1>
+            <p className="text-[11px] text-slate-500 mt-0.5">Compass Community Church</p>
           </div>
+        </div>
 
-          <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
-            <button 
-              onClick={() => setViewMode('detail')} 
-              className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all ${viewMode === 'detail' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              <LayoutGrid size={14} /> Detail View
-            </button>
-            <button 
-              onClick={() => setViewMode('pipeline')} 
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${viewMode === 'pipeline' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              <Columns size={14} /> Pipeline View
-            </button>
-            <button 
-              onClick={() => setViewMode('calendar')} 
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${viewMode === 'calendar' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              <Calendar size={14} /> Calendar View
-            </button>
-          </div>
+        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-md border border-slate-200">
+          <button 
+            onClick={() => setViewMode('detail')} 
+            className={`flex items-center gap-2 px-4 py-1.5 rounded text-sm font-medium transition-colors ${viewMode === 'detail' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
+          >
+            <LayoutGrid size={16} /> Detail
+          </button>
+          <button 
+            onClick={() => setViewMode('pipeline')} 
+            className={`flex items-center gap-2 px-4 py-1.5 rounded text-sm font-medium transition-colors ${viewMode === 'pipeline' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
+          >
+            <Columns size={16} /> Pipeline
+          </button>
+          <button 
+            onClick={() => setViewMode('calendar')} 
+            className={`flex items-center gap-2 px-4 py-1.5 rounded text-sm font-medium transition-colors ${viewMode === 'calendar' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
+          >
+            <Calendar size={16} /> Calendar
+          </button>
+        </div>
 
-          <div className="flex items-center gap-3">
-            <button onClick={() => setIsBlackoutModalOpen(true)} className="bg-white border text-slate-700 px-5 py-2.5 rounded-2xl text-sm font-bold hover:bg-slate-50 active:scale-95 transition-all flex items-center gap-2 shadow-sm">
-               Blackouts
-            </button>
-            <button onClick={() => handleOpenModal()} className="bg-slate-900 text-white px-6 py-2.5 rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-slate-800 active:scale-95 transition-all shadow-xl shadow-slate-200">
-              <Plus size={18} strokeWidth={3} /> New Study
-            </button>
-          </div>
+        <div className="flex items-center gap-3">
+          <button onClick={() => setIsBlackoutModalOpen(true)} className="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-slate-50 active:scale-95 transition-all shadow-sm">
+             Manage Blackouts
+          </button>
+          <button onClick={() => handleOpenModal()} className="bg-[#2b5278] text-white px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 hover:bg-[#1f3f5e] active:scale-95 transition-all shadow-sm">
+            <Plus size={16} strokeWidth={2.5} /> New Study
+          </button>
         </div>
       </header>
 
@@ -691,32 +689,32 @@ const App = () => {
             </section>
           </div>
         ) : viewMode === 'pipeline' ? (
-          <div className="flex flex-row gap-6 h-[calc(100vh-160px)] w-full overflow-x-auto lg:overflow-x-visible pb-4">
+          <div className="flex flex-row gap-4 h-[calc(100vh-140px)] w-full overflow-x-auto lg:overflow-x-visible pb-4">
             {STAGES.map(stage => (
               <div 
                 key={stage.id} 
                 onDragOver={(e) => onDragOver(e, stage.id)}
                 onDragLeave={() => setDragOverStage(null)}
                 onDrop={(e) => onDrop(e, stage.id)}
-                className={`flex-1 min-w-[300px] flex flex-col rounded-[2.5rem] transition-all duration-300 ${dragOverStage === stage.id ? 'bg-blue-50 ring-4 ring-blue-100 ring-inset scale-[1.02]' : 'bg-transparent'}`}
+                className={`flex-1 min-w-[360px] flex flex-col rounded-lg transition-all duration-200 border ${dragOverStage === stage.id ? 'bg-blue-50/50 border-blue-300 ring-2 ring-blue-200' : 'bg-slate-100/50 border-slate-200'}`}
               >
-                <div className="flex items-center justify-between mb-4 px-5 py-4 bg-slate-200/50 rounded-2xl border border-slate-200 shadow-sm">
-                  <h4 className="text-[11px] font-black text-slate-700 uppercase tracking-widest flex items-center gap-2 truncate">
-                    <stage.icon size={14} className="text-slate-400" /> {stage.name}
+                <div className="flex items-center justify-between mb-3 px-4 py-3 bg-white rounded-t-lg border-b border-slate-200 shadow-sm">
+                  <h4 className="text-sm font-semibold text-slate-800 flex items-center gap-2 truncate">
+                    <stage.icon size={16} className="text-slate-400" /> {stage.name}
                   </h4>
-                  <span className="text-[10px] font-black bg-white px-3 py-1 rounded-lg border text-slate-400 shadow-sm">
+                  <span className="text-xs font-semibold bg-slate-100 px-2.5 py-1 rounded-md text-slate-600">
                     {(studiesByStage[stage.id] || []).length}
                   </span>
                 </div>
-                <div className="flex-1 overflow-y-auto space-y-4 pb-4 scrollbar-hide px-1">
+                <div className="flex-1 overflow-y-auto space-y-3 pb-4 scrollbar-hide px-3 pt-3">
                   {(studiesByStage[stage.id] || []).map(study => (
                     <StudyCard key={study.id} study={study} compact={true} />
                   ))}
                   <button 
                     onClick={() => handleOpenModal(null, stage.id)}
-                    className="w-full py-5 border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 hover:text-blue-500 hover:border-blue-200 hover:bg-white transition-all text-xs font-black flex items-center justify-center gap-2 uppercase tracking-widest"
+                    className="w-full py-4 border border-dashed border-slate-300 rounded-lg text-slate-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-colors text-sm font-medium flex items-center justify-center gap-2"
                   >
-                    <Plus size={16} strokeWidth={4} /> Add Study
+                    <Plus size={16} /> Add Study
                   </button>
                 </div>
               </div>
