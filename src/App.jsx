@@ -321,6 +321,7 @@ const App = () => {
           {!compact && <span className="flex items-center gap-1"><Calendar size={10}/> {study.startDate}</span>}
           {compact && study.weeks && <span className="flex items-center gap-1"><Clock size={10}/> {study.weeks}w</span>}
         </div>
+        </div>
       </div>
     );
   };
