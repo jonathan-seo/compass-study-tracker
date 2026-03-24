@@ -23,7 +23,8 @@ import {
   Globe,
   Hash,
   FileText,
-  AlertTriangle
+  AlertTriangle,
+  LogOut
 } from 'lucide-react';
 
 const STAGE_INDEXES = { planning: 0, approval: 1, sourcing: 2, promotion: 3, active: 4, review: 5 };
@@ -50,7 +51,8 @@ import {
 import { 
   getAuth, 
   onAuthStateChanged, 
-  signInAnonymously 
+  signInWithEmailAndPassword,
+  signOut
 } from 'firebase/auth';
 
 // --- COMPASS FIREBASE CONFIGURATION ---
@@ -109,6 +111,9 @@ const App = () => {
   const [draggedId, setDraggedId] = useState(null);
   const [dragOverStage, setDragOverStage] = useState(null);
 
+  const [authError, setAuthError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
   const [formData, setFormData] = useState({
     title: '', 
     ministryId: 'mens', 
@@ -130,8 +135,10 @@ const App = () => {
   });
 
   useEffect(() => {
-    signInAnonymously(auth).catch(err => console.error("Auth error:", err));
-    const unsubscribe = onAuthStateChanged(auth, setUser);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      if (!currentUser) setLoading(false);
+    });
     return () => unsubscribe();
   }, []);
 
@@ -606,11 +613,49 @@ const App = () => {
     );
   };
 
+  const handleLogin = async (e, email, password) => {
+    e.preventDefault();
+    setIsLoggingIn(true);
+    setAuthError('');
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (err) {
+      console.error(err);
+      setAuthError("Invalid credentials or account not found.");
+      setIsLoggingIn(false);
+    }
+  };
+
   if (loading) return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
         <Loader2 className="animate-spin text-blue-600" size={32} />
         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Compass Discipleship Cloud...</span>
+      </div>
+    </div>
+  );
+
+  if (!user) return (
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 selection:bg-blue-100 font-sans">
+      <div className="bg-white p-10 rounded-[2rem] shadow-xl w-full max-w-md border border-slate-200 flex flex-col items-center animate-in zoom-in-95 duration-500">
+        <div className="bg-[#2b5278] p-3 rounded-xl shadow-sm mb-6"><BookOpen className="text-white" size={32} /></div>
+        <h1 className="text-2xl font-bold text-slate-800 mb-2 tracking-tight">Compass Study Tracker</h1>
+        <p className="text-sm text-slate-500 mb-8 text-center font-medium">Enter the team credentials to access the discipleship workflow.</p>
+        
+        <form onSubmit={(e) => handleLogin(e, e.target.email.value, e.target.password.value)} className="w-full space-y-4">
+          {authError && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg border border-red-100 text-center font-medium shadow-sm">{authError}</div>}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1.5 ml-1">Team Email</label>
+            <input name="email" type="email" required className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all shadow-sm" placeholder="team@compass.local" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1.5 ml-1">Passcode</label>
+            <input name="password" type="password" required className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all shadow-sm" placeholder="••••••••" />
+          </div>
+          <button disabled={isLoggingIn} type="submit" className="w-full bg-[#2b5278] text-white py-3 rounded-lg font-semibold mt-4 hover:bg-[#1f3f5e] transition-colors disabled:opacity-70 shadow-md">
+            {isLoggingIn ? 'Authenticating...' : 'Secure Login'}
+          </button>
+        </form>
       </div>
     </div>
   );
@@ -655,6 +700,9 @@ const App = () => {
         </div>
 
         <div className="hidden lg:flex items-center gap-3">
+          <button onClick={() => { signOut(auth); setUser(null); }} className="text-slate-400 hover:text-slate-600 text-sm font-medium mr-2 flex items-center gap-1 transition-colors">
+            <LogOut size={16} /> Logout
+          </button>
           <button onClick={() => setIsBlackoutModalOpen(true)} className="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-slate-50 active:scale-95 transition-all shadow-sm">
              Manage Blackouts
           </button>
