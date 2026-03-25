@@ -339,27 +339,70 @@ const App = () => {
   };
 
   const BlackoutModal = () => {
-    const [dateText, setDateText] = useState('');
-    
-    const handleAdd = async (e) => {
-      e.preventDefault();
-      if (!dateText) return;
-      // Force to Sunday alignment
-      let d = new Date(dateText + 'T00:00:00'); // local time
-      if (d.getDay() !== 0) {
-        d.setDate(d.getDate() - d.getDay()); 
+    const [name, setName] = useState('');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [targetMinistries, setTargetMinistries] = useState(['all']);
+    const [editingId, setEditingId] = useState(null);
+
+    const isAll = targetMinistries.includes('all');
+
+    const handleToggleMinistry = (minId) => {
+      if (minId === 'all') {
+        setTargetMinistries(isAll ? [] : ['all']);
+        return;
       }
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      const alignedDate = `${y}-${m}-${day}`;
+      let newT = targetMinistries.filter(m => m !== 'all');
+      if (newT.includes(minId)) {
+        newT = newT.filter(m => m !== minId);
+      } else {
+        newT.push(minId);
+      }
+      setTargetMinistries(newT);
+    };
+
+    const handleSave = async (e) => {
+      e.preventDefault();
+      if (!startDate || !endDate || !name) return;
+      
+      const alignToSunday = (dateStr) => {
+        let d = new Date(dateStr + 'T00:00:00');
+        if (d.getDay() !== 0) d.setDate(d.getDate() - d.getDay()); 
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
+
+      const sDate = alignToSunday(startDate);
+      const eDate = alignToSunday(endDate);
+      const payload = {
+        name, startDate: sDate, endDate: eDate,
+        ministries: targetMinistries.length ? targetMinistries : ['all']
+      };
 
       try {
-        await addDoc(collection(db, 'global_blackouts'), { date: alignedDate });
-        setDateText('');
+        if (editingId) {
+          await updateDoc(doc(db, 'global_blackouts', editingId), payload);
+        } else {
+          await addDoc(collection(db, 'global_blackouts'), payload);
+        }
+        resetForm();
       } catch (err) { console.error(err); }
     };
     
+    const resetForm = () => {
+      setName(''); setStartDate(''); setEndDate(''); setTargetMinistries(['all']); setEditingId(null);
+    };
+
+    const handleEdit = (b) => {
+      setEditingId(b.id);
+      setName(b.name || '');
+      setStartDate(b.startDate || b.date); 
+      setEndDate(b.endDate || b.date);
+      setTargetMinistries(b.ministries || ['all']);
+    };
+
     const handleDelete = async (id) => {
       try {
         await deleteDoc(doc(db, 'global_blackouts', id));
@@ -367,32 +410,91 @@ const App = () => {
     };
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
-        <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 animate-in zoom-in-95">
-          <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6 bg-slate-900/40 backdrop-blur-sm">
+        <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-4xl p-6 md:p-8 animate-in zoom-in-95 max-h-[90vh] flex flex-col">
+          <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100 flex-shrink-0">
             <div>
-              <h2 className="text-xl font-semibold text-slate-800">Global Blackouts</h2>
-              <p className="text-xs text-slate-500 mt-1">Pauses study tracking logic automatically</p>
+              <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Blackouts & Cancellations</h2>
+              <p className="text-sm text-slate-500 mt-1 font-medium">Suspend tracking logic globally or for specific ministries</p>
             </div>
-            <button onClick={() => setIsBlackoutModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-all"><X size={20}/></button>
+            <button onClick={() => setIsBlackoutModalOpen(false)} className="p-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all"><X size={20}/></button>
           </div>
           
-          <form onSubmit={handleAdd} className="flex gap-3 mb-6">
-            <input type="date" required value={dateText} onChange={e => setDateText(e.target.value)} className="flex-1 bg-white border border-slate-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" />
-            <button type="submit" className="bg-[#2b5278] text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-[#1f3f5e] active:scale-95 transition-all shadow-sm">Add Blackout</button>
-          </form>
-          
-          <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar pr-2">
-            {blackouts.length === 0 ? (
-              <div className="p-8 text-center border border-dashed border-slate-200 rounded-lg">
-                <p className="text-sm text-slate-500 font-medium">No blackouts scheduled</p>
+          <div className="flex-1 overflow-y-auto custom-scrollbar md:pr-4 flex flex-col md:flex-row gap-8">
+            <div className="md:w-1/2 flex flex-col">
+              <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-4 ml-1">{editingId ? 'Edit Cancellation' : 'New Cancellation'}</h3>
+              <form onSubmit={handleSave} className="space-y-5 flex-1 p-1">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 mb-1.5 ml-1">Event / Reason</label>
+                  <input type="text" required value={name} onChange={e => setName(e.target.value)} placeholder="e.g. March Break, Snow Day" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all shadow-sm" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1.5 ml-1">Start Week</label>
+                    <input type="date" required value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all shadow-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1.5 ml-1">End Week</label>
+                    <input type="date" required value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all shadow-sm" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 mb-2 ml-1">Affects Ministries</label>
+                  <div className="space-y-1.5 bg-slate-50 p-4 border border-slate-200 rounded-xl shadow-inner">
+                    <label className="flex items-center gap-3 cursor-pointer group pb-3 border-b border-slate-200/60 mb-1.5">
+                      <div className={`w-5 h-5 rounded flex items-center justify-center border transition-all ${isAll ? 'bg-blue-600 border-blue-600 shadow-sm' : 'bg-white border-slate-300 group-hover:border-blue-400'}`} onClick={() => handleToggleMinistry('all')}>
+                        {isAll && <div className="w-2.5 h-2.5 bg-white rounded-sm"></div>}
+                      </div>
+                      <span className="text-sm font-bold text-slate-800" onClick={() => handleToggleMinistry('all')}>All Ministries</span>
+                    </label>
+                    {Object.values(MINISTRIES).map(min => (
+                      <label key={min.id} className={`flex items-center gap-3 cursor-pointer group transition-opacity py-1 ${isAll ? 'opacity-50' : 'opacity-100'}`}>
+                        <div className={`w-4 h-4 rounded-sm flex items-center justify-center border transition-all ${targetMinistries.includes(min.id) || isAll ? 'bg-blue-500 border-blue-500' : 'bg-white border-slate-300 group-hover:border-blue-400'}`} onClick={(e) => { e.preventDefault(); handleToggleMinistry(min.id); }}>
+                          {(targetMinistries.includes(min.id) || isAll) && <div className="w-2 h-2 bg-white rounded-[1px]"></div>}
+                        </div>
+                        <span className="text-xs font-bold text-slate-700" onClick={(e) => { e.preventDefault(); handleToggleMinistry(min.id); }}>{min.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="pt-2 flex gap-3">
+                  {editingId && <button type="button" onClick={resetForm} className="flex-1 bg-white border border-slate-300 text-slate-600 py-3 rounded-lg font-semibold hover:bg-slate-50 transition-colors shadow-sm text-sm">Cancel</button>}
+                  <button type="submit" className="flex-1 bg-[#2b5278] text-white py-3 rounded-lg font-semibold hover:bg-[#1f3f5e] transition-colors shadow-md text-sm">{editingId ? 'Update' : 'Add Cancellation'}</button>
+                </div>
+              </form>
+            </div>
+            
+            <div className="md:w-1/2 flex flex-col border-t md:border-t-0 md:border-l border-slate-100 pt-8 md:pt-0 md:pl-8">
+              <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-4 ml-1">Active Interruptions</h3>
+              <div className="flex-1 space-y-3 overflow-y-auto pr-2 custom-scrollbar p-1">
+                {blackouts.length === 0 ? (
+                  <div className="p-8 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                    <p className="text-sm text-slate-400 font-bold">No active interruptions</p>
+                  </div>
+                ) : blackouts.sort((a,b) => (a.startDate || a.date).localeCompare(b.startDate || b.date)).map(b => (
+                  <div key={b.id} className="bg-white p-4 lg:p-5 rounded-2xl border border-slate-200 shadow-sm relative group hover:border-blue-300 hover:shadow-md transition-all">
+                    <div className="absolute top-4 right-4 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-white">
+                      <button onClick={() => handleEdit(b)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all border border-transparent hover:border-blue-100"><FileText size={14}/></button>
+                      <button onClick={() => handleDelete(b.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-all border border-transparent hover:border-rose-100"><Trash2 size={14}/></button>
+                    </div>
+                    <h4 className="font-bold text-slate-800 text-base pr-16 leading-tight">{b.name || 'Global Blackout'}</h4>
+                    <div className="flex items-center gap-1.5 mt-2 text-xs font-semibold text-slate-500">
+                      <Calendar size={12} className="text-slate-400"/> 
+                      {b.startDate || b.date} {b.endDate && b.endDate !== b.startDate && b.endDate !== (b.startDate||b.date) ? `to ${b.endDate}` : ''}
+                    </div>
+                    <div className="mt-3.5 flex flex-wrap gap-1.5">
+                      {(b.ministries || ['all']).includes('all') ? (
+                         <span className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md bg-slate-100 text-slate-600 border border-slate-200">ALL MINISTRIES</span>
+                      ) : (
+                         (b.ministries || []).map(m => (
+                           <span key={m} className={`text-[9px] font-bold px-2 py-1 rounded-md border ${MINISTRIES[m.toUpperCase()]?.color || 'bg-slate-100'}`}>{MINISTRIES[m.toUpperCase()]?.name || m}</span>
+                         ))
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ) : blackouts.sort((a,b) => a.date.localeCompare(b.date)).map(b => (
-              <div key={b.id} className="flex justify-between items-center bg-white p-3 rounded-lg border border-slate-200 shadow-sm group">
-                <span className="text-sm font-medium text-slate-700 flex items-center gap-2"><Calendar size={16} className="text-slate-400"/> {b.date} (Week)</span>
-                <button onClick={() => handleDelete(b.id)} className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-md transition-all opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button>
-              </div>
-            ))}
+            </div>
           </div>
         </div>
       </div>
@@ -441,7 +543,12 @@ const App = () => {
       const leftOffsetDays = (currDate - ministryStart) / msPerDay;
       const leftPct = (leftOffsetDays / totalDays) * 100;
       const dateStr = formatDateObj(currDate);
-      const isBlackout = blackouts.some(b => b.date === dateStr);
+      const isBlackout = blackouts.some(b => {
+        const bdStart = b.startDate || b.date;
+        const bdEnd = b.endDate || b.date;
+        const appliesAll = (b.ministries || ['all']).includes('all');
+        return appliesAll && dateStr >= bdStart && dateStr <= bdEnd;
+      });
       
       sundays.push({ 
         date: currDate.getDate(), 
@@ -465,8 +572,13 @@ const App = () => {
       while (weeksToComplete > 0 && totalDurationDays < 365 * 5) {
         const sundayOfWeek = new Date(currentIterDate);
         sundayOfWeek.setDate(sundayOfWeek.getDate() - sundayOfWeek.getDay());
-        
-        const isBlackout = blackouts.some(b => b.date === formatDateObj(sundayOfWeek));
+        const dateStr = formatDateObj(sundayOfWeek);
+        const isBlackout = blackouts.some(b => {
+           const bdStart = b.startDate || b.date;
+           const bdEnd = b.endDate || b.date;
+           const applies = (b.ministries || ['all']).includes('all') || (b.ministries || []).includes(study.ministryId);
+           return applies && dateStr >= bdStart && dateStr <= bdEnd;
+        });
         
         if (!isBlackout) {
           weeksToComplete--;
