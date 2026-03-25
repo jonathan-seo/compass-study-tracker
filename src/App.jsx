@@ -552,6 +552,7 @@ const App = () => {
       
       sundays.push({ 
         date: currDate.getDate(), 
+        dateStr,
         leftPct, 
         isBlackout,
         widthPct: (7 / totalDays) * 100 
@@ -654,9 +655,6 @@ const App = () => {
               <div className="absolute top-0 bottom-0 left-28 md:left-64 right-0 pointer-events-none z-0">
                 {sundays.map((s, i) => (
                   <React.Fragment key={i}>
-                    {s.isBlackout && (
-                      <div style={{ left: `${s.leftPct}%`, width: `${s.widthPct}%` }} className="absolute top-0 bottom-0 bg-slate-200/50"></div>
-                    )}
                     <div style={{ left: `${s.leftPct}%` }} className="absolute top-0 bottom-0 border-l border-dashed border-slate-200"></div>
                   </React.Fragment>
                 ))}
@@ -667,6 +665,19 @@ const App = () => {
               ) : (
                 grouped.map(group => (
                   <div key={group.id} className="border-b border-slate-200 last:border-0 relative z-10">
+                    <div className="absolute top-0 bottom-0 left-28 md:left-64 right-0 pointer-events-none z-0">
+                      {sundays.map((s, i) => {
+                        const isGroupBlackout = blackouts.some(b => {
+                          const bdStart = b.startDate || b.date;
+                          const bdEnd = b.endDate || b.date;
+                          const applies = (b.ministries || ['all']).includes('all') || (b.ministries || []).includes(group.id);
+                          return applies && s.dateStr >= bdStart && s.dateStr <= bdEnd;
+                        });
+                        return isGroupBlackout ? (
+                          <div key={i} style={{ left: `${s.leftPct}%`, width: `${s.widthPct}%` }} className="absolute top-0 bottom-0 bg-slate-200/60 border-x border-slate-300/40 border-dashed"></div>
+                        ) : null;
+                      })}
+                    </div>
                     <div className="bg-slate-100 px-3 py-2 border-b border-slate-200 sticky left-0 z-10 w-28 md:w-64 shadow-[1px_0_0_0_#e2e8f0] flex items-center overflow-hidden">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide border ${group.color}`}>
                         {group.name}
