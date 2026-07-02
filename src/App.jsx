@@ -109,6 +109,7 @@ const App = () => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [activeStage, setActiveStage] = useState('active');
   const [viewMode, setViewMode] = useState('pipeline'); 
+  const [trimEmptyMonths, setTrimEmptyMonths] = useState(true);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStudy, setEditingStudy] = useState(null);
@@ -961,22 +962,10 @@ const App = () => {
     
     const [startYear, setStartYear] = useState(defaultStartYear);
     const endYear = startYear + 1;
-    
-    // Explicitly set the range boundary
-    const ministryStart = new Date(startYear, 8, 1);
-    const ministryEnd = new Date(endYear, 8, 1);
     const msPerDay = 1000 * 60 * 60 * 24;
-    const totalDays = Math.round((ministryEnd - ministryStart) / msPerDay);
 
-    // Calculate proportional months
-    const timelineMonths = [];
-    for (let i = 0; i < 12; i++) {
-      const mDate = new Date(startYear, 8 + i, 1);
-      const nextMonth = new Date(startYear, 8 + i + 1, 1);
-      const daysInMonth = Math.round((nextMonth - mDate) / msPerDay);
-      const monthName = mDate.toLocaleString('default', { month: 'short' });
-      timelineMonths.push({ name: monthName, days: daysInMonth, widthPct: (daysInMonth / totalDays) * 100 });
-    }
+    const yearStart = new Date(startYear, 8, 1);
+    const yearEnd = new Date(endYear, 8, 1);
 
     const formatDateObj = (d) => {
       const y = d.getFullYear();
@@ -984,6 +973,82 @@ const App = () => {
       const day = String(d.getDate()).padStart(2, '0');
       return `${y}-${m}-${day}`;
     };
+
+    // 1. Pre-calculate sStart and sEnd (including blackouts) for all valid studies
+    const validStudies = studies.filter(s => s.startDate && s.weeks > 0);
+    const analyzedStudies = validStudies.map(study => {
+      const [y, m, d] = study.startDate.split('-');
+      const sStart = new Date(y, m - 1, d);
+      
+      let currentIterDate = new Date(sStart);
+      let weeksToComplete = study.weeks;
+      let totalDurationDays = 0;
+      
+      while (weeksToComplete > 0 && totalDurationDays < 365 * 5) {
+        const sundayOfWeek = new Date(currentIterDate);
+        sundayOfWeek.setDate(sundayOfWeek.getDate() - sundayOfWeek.getDay());
+        const dateStr = formatDateObj(sundayOfWeek);
+        const isBlackout = blackouts.some(b => {
+           const bdStart = b.startDate || b.date;
+           const bdEnd = b.endDate || b.date;
+           const applies = (b.ministries || ['all']).includes('all') || (b.ministries || []).includes(study.ministryId);
+           return applies && dateStr >= bdStart && dateStr <= bdEnd;
+        });
+        
+        if (!isBlackout) {
+          weeksToComplete--;
+        }
+        currentIterDate.setDate(currentIterDate.getDate() + 7);
+        totalDurationDays += 7;
+      }
+      
+      const sEnd = new Date(sStart.getTime() + totalDurationDays * msPerDay);
+      return { study, sStart, sEnd, totalDurationDays };
+    });
+
+    // 2. Filter studies that fall within the current ministry year
+    const activeAnalyzed = analyzedStudies.filter(({ sStart, sEnd }) => {
+      return sEnd > yearStart && sStart < yearEnd;
+    });
+
+    // 3. Determine dynamic ministry start/end bounds
+    let ministryStart = yearStart;
+    let ministryEnd = yearEnd;
+
+    if (trimEmptyMonths && activeAnalyzed.length > 0) {
+      const startDates = activeAnalyzed.map(a => a.sStart.getTime());
+      const endDates = activeAnalyzed.map(a => a.sEnd.getTime());
+      const earliestStart = new Date(Math.min(...startDates));
+      const latestEnd = new Date(Math.max(...endDates));
+
+      // Align to first day of earliest start month, and first day of month after latest end
+      ministryStart = new Date(earliestStart.getFullYear(), earliestStart.getMonth(), 1);
+      ministryEnd = new Date(latestEnd.getFullYear(), latestEnd.getMonth() + 1, 1);
+    }
+
+    const totalDays = Math.round((ministryEnd - ministryStart) / msPerDay);
+    const totalMonths = (ministryEnd.getFullYear() - ministryStart.getFullYear()) * 12 + (ministryEnd.getMonth() - ministryStart.getMonth());
+
+    // Calculate proportional months
+    const timelineMonths = [];
+    let lastYear = null;
+    for (let i = 0; i < totalMonths; i++) {
+      const mDate = new Date(ministryStart.getFullYear(), ministryStart.getMonth() + i, 1);
+      const nextMonth = new Date(ministryStart.getFullYear(), ministryStart.getMonth() + i + 1, 1);
+      const daysInMonth = Math.round((nextMonth - mDate) / msPerDay);
+      const monthName = mDate.toLocaleString('default', { month: 'short' });
+      const year = mDate.getFullYear();
+      const showYear = i === 0 || year !== lastYear;
+      lastYear = year;
+
+      timelineMonths.push({ 
+        name: monthName, 
+        year,
+        showYear,
+        days: daysInMonth, 
+        widthPct: (daysInMonth / totalDays) * 100 
+      });
+    }
 
     // Calculate all Sundays
     const sundays = [];
@@ -1012,36 +1077,8 @@ const App = () => {
       currDate.setDate(currDate.getDate() + 7);
     }
     
-    const validStudies = studies.filter(s => s.startDate && s.weeks > 0);
-    
-    const plottedStudies = validStudies.map(study => {
-      const [y, m, d] = study.startDate.split('-');
-      const sStart = new Date(y, m - 1, d);
-      
-      let currentIterDate = new Date(sStart);
-      let weeksToComplete = study.weeks;
-      let totalDurationDays = 0;
-      
-      while (weeksToComplete > 0 && totalDurationDays < 365 * 5) {
-        const sundayOfWeek = new Date(currentIterDate);
-        sundayOfWeek.setDate(sundayOfWeek.getDate() - sundayOfWeek.getDay());
-        const dateStr = formatDateObj(sundayOfWeek);
-        const isBlackout = blackouts.some(b => {
-           const bdStart = b.startDate || b.date;
-           const bdEnd = b.endDate || b.date;
-           const applies = (b.ministries || ['all']).includes('all') || (b.ministries || []).includes(study.ministryId);
-           return applies && dateStr >= bdStart && dateStr <= bdEnd;
-        });
-        
-        if (!isBlackout) {
-          weeksToComplete--;
-        }
-        currentIterDate.setDate(currentIterDate.getDate() + 7);
-        totalDurationDays += 7;
-      }
-      
-      const sEnd = new Date(sStart.getTime() + totalDurationDays * msPerDay);
-      
+    // Map active studies into plotted coordinates based on dynamic bounds
+    const plottedStudies = activeAnalyzed.map(({ study, sStart, sEnd, totalDurationDays }) => {
       if (sEnd <= ministryStart || sStart >= ministryEnd) return null;
       
       let leftOffsetDays = (sStart - ministryStart) / msPerDay;
@@ -1070,10 +1107,22 @@ const App = () => {
       <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 overflow-hidden flex flex-col h-[calc(100vh-140px)]">
         <div className="flex items-center justify-between mb-4 px-2">
           <h2 className="text-xl font-semibold text-slate-800">Ministry Year Planner</h2>
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-md border border-slate-200">
-            <button onClick={() => setStartYear(y => y - 1)} className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-white rounded transition-all">← {startYear - 1}-{startYear}</button>
-            <span className="px-3 py-1.5 text-xs font-semibold text-[#2b5278] bg-white shadow-sm rounded">{startYear}-{endYear}</span>
-            <button onClick={() => setStartYear(y => y + 1)} className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-white rounded transition-all">{startYear + 1}-{endYear + 1} →</button>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setTrimEmptyMonths(!trimEmptyMonths)}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md border transition-all ${
+                trimEmptyMonths 
+                  ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100' 
+                  : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              {trimEmptyMonths ? 'Active Months Only' : 'Full Year Range'}
+            </button>
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-md border border-slate-200">
+              <button onClick={() => setStartYear(y => y - 1)} className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-white rounded transition-all">← {startYear - 1}-{startYear}</button>
+              <span className="px-3 py-1.5 text-xs font-semibold text-[#2b5278] bg-white shadow-sm rounded">{startYear}-{endYear}</span>
+              <button onClick={() => setStartYear(y => y + 1)} className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-white rounded transition-all">{startYear + 1}-{endYear + 1} →</button>
+            </div>
           </div>
         </div>
         
@@ -1086,9 +1135,11 @@ const App = () => {
                 </div>
                 <div className="flex-1 flex relative h-12">
                   <div className="flex absolute top-0 left-0 right-0 h-7 border-b border-slate-200 bg-slate-50">
-                    {timelineMonths.map((m) => (
-                      <div key={m.name} style={{ width: `${m.widthPct}%` }} className="border-r border-slate-200 p-1 text-center flex items-center justify-center">
-                        <span className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">{m.name}</span>
+                    {timelineMonths.map((m, idx) => (
+                      <div key={idx} style={{ width: `${m.widthPct}%` }} className="border-r border-slate-200 p-1 text-center flex items-center justify-center">
+                        <span className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">
+                          {m.name}{m.showYear ? ` '${String(m.year).slice(2)}` : ''}
+                        </span>
                       </div>
                     ))}
                   </div>
