@@ -19,12 +19,14 @@ import {
   LayoutGrid,
   Columns,
   GripVertical,
-  SquareCheck,
   Globe,
   Hash,
   FileText,
   AlertTriangle,
-  LogOut
+  LogOut,
+  Upload,
+  Check,
+  AlertCircle
 } from 'lucide-react';
 
 const STAGE_INDEXES = { planning: 0, approval: 1, sourcing: 2, promotion: 3, active: 4, review: 5 };
@@ -104,6 +106,7 @@ const App = () => {
   const [studies, setStudies] = useState([]);
   const [blackouts, setBlackouts] = useState([]);
   const [isBlackoutModalOpen, setIsBlackoutModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [activeStage, setActiveStage] = useState('active');
   const [viewMode, setViewMode] = useState('pipeline'); 
   const [loading, setLoading] = useState(true);
@@ -501,6 +504,455 @@ const App = () => {
     );
   };
 
+  // --- IMPORT MODAL AND RESOLVER ---
+  const ImportModal = () => {
+    const [fileContent, setFileContent] = useState('');
+    const [errorMsg, setErrorMsg] = useState('');
+    const [previewData, setPreviewData] = useState(null); // { newStudies: [], conflicts: [], duplicates: [] }
+    const [selectedIds, setSelectedIds] = useState(new Set());
+    const [activeTab, setActiveTab] = useState('new'); // 'new' | 'conflict' | 'duplicate'
+    const [isImporting, setIsImporting] = useState(false);
+
+    const getDifferences = (existing, imported) => {
+      const diffs = {};
+      const fieldsToCheck = [
+        'weeks', 'location', 'stage', 'notes', 'studyMaterial', 
+        'physicalResources', 'digitalResources', 'imageUrl', 
+        'resourcesObtained', 'websiteUpdated', 'liveTracking', 
+        'postReview', 'promoText', 'updates'
+      ];
+      
+      fieldsToCheck.forEach(field => {
+        if (!(field in imported)) return;
+        
+        let valExist = existing[field];
+        let valImport = imported[field];
+        
+        if (typeof valExist === 'boolean' || typeof valImport === 'boolean') {
+          if (!!valExist !== !!valImport) {
+            diffs[field] = { existing: !!valExist, imported: !!valImport };
+          }
+          return;
+        }
+        
+        if (field === 'weeks') {
+          if (Number(valExist || 6) !== Number(valImport || 6)) {
+            diffs[field] = { existing: Number(valExist || 6), imported: Number(valImport || 6) };
+          }
+          return;
+        }
+        
+        let strExist = String(valExist || '').trim();
+        let strImport = String(valImport || '').trim();
+        if (strExist !== strImport) {
+          diffs[field] = { existing: strExist, imported: strImport };
+        }
+      });
+      
+      return diffs;
+    };
+
+    const handleTextSubmit = (e) => {
+      e.preventDefault();
+      handleParse(fileContent);
+    };
+
+    const handleFileUpload = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target.result;
+        setFileContent(text);
+        handleParse(text);
+      };
+      reader.readAsText(file);
+    };
+
+    const handleParse = (text) => {
+      try {
+        const data = JSON.parse(text);
+        if (!Array.isArray(data)) {
+          throw new Error("Input must be a JSON array of studies.");
+        }
+        
+        const newStudies = [];
+        const conflicts = [];
+        const duplicates = [];
+        
+        data.forEach((item, index) => {
+          if (!item.title || typeof item.title !== 'string' || !item.title.trim()) {
+            throw new Error(`Item at index ${index} is missing a valid 'title'.`);
+          }
+          if (!item.ministryId || typeof item.ministryId !== 'string' || !item.ministryId.trim()) {
+            throw new Error(`Item at index ${index} ('${item.title}') is missing a valid 'ministryId'.`);
+          }
+          const validMinIds = Object.values(MINISTRIES).map(m => m.id);
+          if (!validMinIds.includes(item.ministryId.trim().toLowerCase())) {
+            throw new Error(`Item at index ${index} ('${item.title}') has an invalid 'ministryId' ('${item.ministryId}'). Valid choices: ${validMinIds.join(', ')}`);
+          }
+          if (!item.startDate || typeof item.startDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(item.startDate)) {
+            throw new Error(`Item at index ${index} ('${item.title}') is missing or has an invalid 'startDate' (format must be YYYY-MM-DD).`);
+          }
+          
+          const match = studies.find(s => 
+            s.title.trim().toLowerCase() === item.title.trim().toLowerCase() && 
+            s.ministryId.trim().toLowerCase() === item.ministryId.trim().toLowerCase() && 
+            s.startDate.trim() === item.startDate.trim()
+          );
+          
+          if (match) {
+            const diffs = getDifferences(match, item);
+            if (Object.keys(diffs).length > 0) {
+              conflicts.push({
+                tempId: `conflict-${index}`,
+                imported: item,
+                existing: match,
+                differences: diffs
+              });
+            } else {
+              duplicates.push({
+                tempId: `duplicate-${index}`,
+                imported: item,
+                existing: match,
+                differences: {}
+              });
+            }
+          } else {
+            newStudies.push({
+              tempId: `new-${index}`,
+              imported: item,
+              existing: null,
+              differences: {}
+            });
+          }
+        });
+        
+        setPreviewData({ newStudies, conflicts, duplicates });
+        setErrorMsg('');
+        
+        // Auto-select new and conflict items
+        const initialSelected = new Set();
+        newStudies.forEach(s => initialSelected.add(s.tempId));
+        conflicts.forEach(s => initialSelected.add(s.tempId));
+        setSelectedIds(initialSelected);
+        
+        // Auto-focus on active tab with items
+        if (newStudies.length > 0) {
+          setActiveTab('new');
+        } else if (conflicts.length > 0) {
+          setActiveTab('conflict');
+        } else {
+          setActiveTab('duplicate');
+        }
+        
+      } catch (err) {
+        setErrorMsg(err.message || "Failed to parse JSON. Please check syntax.");
+        setPreviewData(null);
+      }
+    };
+
+    const toggleSelectItem = (id) => {
+      const next = new Set(selectedIds);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      setSelectedIds(next);
+    };
+
+    const getItemsByTab = () => {
+      if (!previewData) return [];
+      if (activeTab === 'new') return previewData.newStudies;
+      if (activeTab === 'conflict') return previewData.conflicts;
+      return previewData.duplicates;
+    };
+
+    const toggleSelectAllTabItems = () => {
+      const items = getItemsByTab();
+      const next = new Set(selectedIds);
+      const allSelected = items.every(item => next.has(item.tempId));
+      
+      items.forEach(item => {
+        if (allSelected) {
+          next.delete(item.tempId);
+        } else {
+          next.add(item.tempId);
+        }
+      });
+      setSelectedIds(next);
+    };
+
+    const handleImportSelected = async () => {
+      if (!previewData || !user) return;
+      setIsImporting(true);
+      setErrorMsg('');
+      try {
+        const { newStudies, conflicts, duplicates } = previewData;
+        const allItems = [...newStudies, ...conflicts, ...duplicates];
+        
+        for (const item of allItems) {
+          if (!selectedIds.has(item.tempId)) continue;
+          
+          const studyData = {
+            title: item.imported.title.trim(),
+            ministryId: item.imported.ministryId.trim(),
+            startDate: item.imported.startDate.trim(),
+            weeks: Number(item.imported.weeks || 6),
+            location: item.imported.location || 'Orangeville',
+            stage: item.imported.stage || 'planning',
+            studyMaterial: item.imported.studyMaterial || 'Not Started',
+            physicalResources: item.imported.physicalResources || 'Not required',
+            digitalResources: item.imported.digitalResources || 'Not required',
+            imageUrl: item.imported.imageUrl || '',
+            resourcesObtained: !!item.imported.resourcesObtained,
+            websiteUpdated: !!item.imported.websiteUpdated,
+            liveTracking: item.imported.liveTracking || 'Not started',
+            postReview: item.imported.postReview || 'Not Started',
+            notes: item.imported.notes || '',
+            promoText: item.imported.promoText || '',
+            updates: item.imported.updates || ''
+          };
+          
+          if (item.existing) {
+            await updateDoc(doc(db, 'ministry_studies', item.existing.id), studyData);
+          } else {
+            await addDoc(collection(db, 'ministry_studies'), {
+              ...studyData,
+              createdAt: new Date().toISOString()
+            });
+          }
+        }
+        
+        setIsImportModalOpen(false);
+        setPreviewData(null);
+        setFileContent('');
+      } catch (err) {
+        console.error("Import error:", err);
+        setErrorMsg("Failed to import database entries: " + err.message);
+      } finally {
+        setIsImporting(false);
+      }
+    };
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6 bg-slate-900/60 backdrop-blur-md overflow-y-auto font-sans">
+        <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-4xl my-auto overflow-hidden animate-in zoom-in-95 duration-300 max-h-[90vh] flex flex-col">
+          <div className="p-8 border-b flex items-center justify-between bg-slate-50/50 flex-shrink-0">
+            <div>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight">Import Studies</h2>
+              <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mt-1">Review & Merge Discipleship Data</p>
+            </div>
+            <button onClick={() => setIsImportModalOpen(false)} className="p-3 hover:bg-slate-100 rounded-full transition-all text-slate-400 hover:text-slate-600">
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+            {errorMsg && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-start gap-3 shadow-sm">
+                <AlertCircle size={20} className="flex-shrink-0 mt-0.5" />
+                <span className="font-semibold leading-relaxed">{errorMsg}</span>
+              </div>
+            )}
+
+            {!previewData ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-wider text-slate-400 mb-3">Upload File</h3>
+                  <label className="border-2 border-dashed border-slate-200 hover:border-blue-400 bg-slate-50/50 hover:bg-blue-50/30 transition-all rounded-[2rem] p-10 flex flex-col items-center justify-center cursor-pointer min-h-[250px] shadow-inner text-center">
+                    <input type="file" accept=".json" onChange={handleFileUpload} className="hidden" />
+                    <div className="p-4 bg-white rounded-2xl shadow-sm mb-4 border border-slate-100 text-blue-500">
+                      <Upload size={32} />
+                    </div>
+                    <span className="font-bold text-slate-700 text-base">Select JSON study file</span>
+                    <span className="text-xs text-slate-400 font-medium mt-1">or drag and drop it here</span>
+                  </label>
+                </div>
+
+                <div className="flex flex-col">
+                  <h3 className="text-sm font-black uppercase tracking-wider text-slate-400 mb-3">Or Paste JSON Data</h3>
+                  <form onSubmit={handleTextSubmit} className="flex flex-col flex-1 gap-4">
+                    <textarea 
+                      placeholder="Paste JSON array here..." 
+                      className="w-full flex-1 min-h-[200px] md:min-h-0 bg-slate-50 border border-slate-200 rounded-[1.5rem] p-4 text-xs font-mono focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all shadow-inner custom-scrollbar"
+                      value={fileContent}
+                      onChange={e => setFileContent(e.target.value)}
+                    />
+                    <button 
+                      type="submit" 
+                      disabled={!fileContent.trim()} 
+                      className="w-full bg-[#2b5278] hover:bg-[#1f3f5e] text-white py-3.5 rounded-xl font-bold transition-all disabled:opacity-50 shadow-md active:scale-[0.98]"
+                    >
+                      Verify Data
+                    </button>
+                  </form>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col lg:flex-row gap-8">
+                <div className="lg:w-64 flex-shrink-0">
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 ml-1">Import Status</h3>
+                  <div className="flex flex-col gap-2">
+                    <button 
+                      onClick={() => setActiveTab('new')} 
+                      className={`flex items-center justify-between p-4 rounded-2xl text-left border font-semibold transition-all ${
+                        activeTab === 'new' ? 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="text-sm">New Studies</span>
+                      <span className={`text-xs px-2.5 py-0.5 rounded-lg font-bold ${activeTab === 'new' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                        {previewData.newStudies.length}
+                      </span>
+                    </button>
+
+                    <button 
+                      onClick={() => setActiveTab('conflict')} 
+                      className={`flex items-center justify-between p-4 rounded-2xl text-left border font-semibold transition-all ${
+                        activeTab === 'conflict' ? 'bg-amber-50 border-amber-300 text-amber-800 shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="text-sm">Conflicts</span>
+                      <span className={`text-xs px-2.5 py-0.5 rounded-lg font-bold ${activeTab === 'conflict' ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                        {previewData.conflicts.length}
+                      </span>
+                    </button>
+
+                    <button 
+                      onClick={() => setActiveTab('duplicate')} 
+                      className={`flex items-center justify-between p-4 rounded-2xl text-left border font-semibold transition-all ${
+                        activeTab === 'duplicate' ? 'bg-slate-50 border-slate-300 text-slate-800 shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="text-sm">Unchanged</span>
+                      <span className={`text-xs px-2.5 py-0.5 rounded-lg font-bold ${activeTab === 'duplicate' ? 'bg-slate-400 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                        {previewData.duplicates.length}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-center mb-4 px-1">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                      Previewing: {activeTab === 'new' ? 'New studies to be inserted' : activeTab === 'conflict' ? 'Studies with differences' : 'Identical matches (already saved)'}
+                    </span>
+                    {getItemsByTab().length > 0 && (
+                      <button 
+                        onClick={toggleSelectAllTabItems} 
+                        className="text-xs font-bold text-blue-600 hover:text-blue-800"
+                      >
+                        {getItemsByTab().every(item => selectedIds.has(item.tempId)) ? 'Deselect All' : 'Select All'}
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-4 max-h-[45vh] overflow-y-auto custom-scrollbar pr-2 p-1">
+                    {getItemsByTab().length === 0 ? (
+                      <div className="p-12 text-center border-2 border-dashed border-slate-100 rounded-[2rem] bg-slate-50/50">
+                        <p className="text-sm text-slate-400 font-bold">No studies found in this category.</p>
+                      </div>
+                    ) : (
+                      getItemsByTab().map(item => {
+                        const isChecked = selectedIds.has(item.tempId);
+                        const min = Object.values(MINISTRIES).find(m => m.id === item.imported.ministryId);
+                        return (
+                          <div 
+                            key={item.tempId} 
+                            onClick={() => toggleSelectItem(item.tempId)}
+                            className={`p-5 bg-white border rounded-2xl shadow-sm hover:shadow transition-all cursor-pointer flex gap-4 items-start ${
+                              isChecked ? 'border-blue-400 ring-2 ring-blue-50' : 'border-slate-200'
+                            }`}
+                          >
+                            <div className={`w-5 h-5 rounded-md border flex items-center justify-center flex-shrink-0 mt-0.5 transition-all ${
+                              isChecked ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-300'
+                            }`}>
+                              {isChecked && <Check size={14} strokeWidth={3} />}
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${min?.color || 'bg-slate-100 border-slate-200'}`}>
+                                  {min?.name || item.imported.ministryId}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-bold">{item.imported.startDate}</span>
+                              </div>
+                              <h4 className="font-bold text-slate-800 text-base leading-snug">{item.imported.title}</h4>
+                              
+                              {item.differences && Object.keys(item.differences).length > 0 && (
+                                <div className="mt-4 space-y-2 bg-slate-50/70 p-3.5 border border-slate-100 rounded-xl shadow-inner">
+                                  <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-2">Detailed Changes:</div>
+                                  {Object.entries(item.differences).map(([field, diff]) => (
+                                    <div key={field} className="grid grid-cols-3 gap-2 text-xs py-1 border-b border-slate-100 last:border-0 leading-normal">
+                                      <div className="font-bold text-slate-500 capitalize">{field.replace(/([A-Z])/g, ' $1')}</div>
+                                      <div className="text-red-600 font-medium line-through truncate" title={String(diff.existing)}>{String(diff.existing) || '(empty)'}</div>
+                                      <div className="text-emerald-700 font-bold truncate" title={String(diff.imported)}>➡️ {String(diff.imported) || '(empty)'}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="p-8 border-t bg-slate-50/50 flex-shrink-0 flex justify-between items-center">
+            {previewData ? (
+              <>
+                <button 
+                  onClick={() => setPreviewData(null)} 
+                  disabled={isImporting}
+                  className="bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 px-6 py-3.5 rounded-xl font-bold transition-all disabled:opacity-50 text-sm shadow-sm"
+                >
+                  Back to Upload
+                </button>
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setIsImportModalOpen(false)} 
+                    disabled={isImporting}
+                    className="bg-white hover:bg-slate-100 border border-transparent text-slate-500 px-6 py-3.5 rounded-xl font-bold transition-all disabled:opacity-50 text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleImportSelected} 
+                    disabled={isImporting || selectedIds.size === 0}
+                    className="bg-[#2b5278] hover:bg-[#1f3f5e] text-white px-6 py-3.5 rounded-xl font-bold transition-all disabled:opacity-50 flex items-center gap-2 text-sm shadow-md active:scale-[0.98]"
+                  >
+                    {isImporting ? (
+                      <>
+                        <Loader2 className="animate-spin" size={16} /> Importing...
+                      </>
+                    ) : (
+                      `Accept Import (${selectedIds.size})`
+                    )}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="w-full flex justify-end">
+                <button 
+                  onClick={() => setIsImportModalOpen(false)} 
+                  className="bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 px-6 py-3.5 rounded-xl font-bold transition-all text-sm shadow-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const CalendarView = () => {
     const today = new Date();
     const currentYear = today.getFullYear();
@@ -795,9 +1247,14 @@ const App = () => {
               <p className="text-[10px] md:text-[11px] text-slate-500 mt-0.5">Compass Community Church</p>
             </div>
           </div>
-          <button onClick={() => handleOpenModal()} className="lg:hidden bg-[#2b5278] text-white p-2 rounded-md font-medium flex items-center justify-center hover:bg-[#1f3f5e] shadow-sm active:scale-95 transition-all">
-            <Plus size={18} strokeWidth={2.5} />
-          </button>
+          <div className="flex items-center gap-2 lg:hidden">
+            <button onClick={() => setIsImportModalOpen(true)} className="bg-white border border-slate-300 text-slate-700 p-2 rounded-md font-medium flex items-center justify-center hover:bg-slate-50 shadow-sm active:scale-95 transition-all">
+              <Upload size={18} />
+            </button>
+            <button onClick={() => handleOpenModal()} className="bg-[#2b5278] text-white p-2 rounded-md font-medium flex items-center justify-center hover:bg-[#1f3f5e] shadow-sm active:scale-95 transition-all">
+              <Plus size={18} strokeWidth={2.5} />
+            </button>
+          </div>
         </div>
 
         <div className="w-full lg:w-auto overflow-x-auto scrollbar-hide py-1">
@@ -826,6 +1283,9 @@ const App = () => {
         <div className="hidden lg:flex items-center gap-3">
           <button onClick={() => { signOut(auth); setUser(null); }} className="text-slate-400 hover:text-slate-600 text-sm font-medium mr-2 flex items-center gap-1 transition-colors">
             <LogOut size={16} /> Logout
+          </button>
+          <button onClick={() => setIsImportModalOpen(true)} className="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-slate-50 active:scale-95 transition-all shadow-sm flex items-center gap-2">
+            <Upload size={16} /> Import Studies
           </button>
           <button onClick={() => setIsBlackoutModalOpen(true)} className="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-slate-50 active:scale-95 transition-all shadow-sm">
              Manage Blackouts
@@ -915,6 +1375,7 @@ const App = () => {
       </main>
 
       {isBlackoutModalOpen && <BlackoutModal />}
+      {isImportModalOpen && <ImportModal />}
 
       {/* Expanded Modal with Restored Fields */}
       {isModalOpen && (
