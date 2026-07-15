@@ -196,7 +196,11 @@ const App = () => {
     setDraggedId(null);
     if (!studyId) return;
     try {
-      await updateDoc(doc(db, 'ministry_studies', studyId), { stage: targetStageId });
+      await updateDoc(doc(db, 'ministry_studies', studyId), {
+        stage: targetStageId,
+        updatedAt: new Date().toISOString(),
+        updatedBy: 'tracker-app'
+      });
     } catch (err) { console.error("Drop failed:", err); }
   };
 
@@ -244,9 +248,19 @@ const App = () => {
     if (!user) return;
     try {
       if (editingStudy) {
-        await updateDoc(doc(db, 'ministry_studies', editingStudy.id), formData);
+        await updateDoc(doc(db, 'ministry_studies', editingStudy.id), {
+          ...formData,
+          updatedAt: new Date().toISOString(),
+          updatedBy: 'tracker-app'
+        });
       } else {
-        await addDoc(collection(db, 'ministry_studies'), { ...formData, createdAt: new Date().toISOString() });
+        const now = new Date().toISOString();
+        await addDoc(collection(db, 'ministry_studies'), {
+          ...formData,
+          createdAt: now,
+          updatedAt: now,
+          updatedBy: 'tracker-app'
+        });
       }
       setIsModalOpen(false);
     } catch (err) { console.error("Save error:", err); }
@@ -718,11 +732,18 @@ const App = () => {
           };
           
           if (item.existing) {
-            await updateDoc(doc(db, 'ministry_studies', item.existing.id), studyData);
+            await updateDoc(doc(db, 'ministry_studies', item.existing.id), {
+              ...studyData,
+              updatedAt: new Date().toISOString(),
+              updatedBy: 'tracker-import'
+            });
           } else {
+            const now = new Date().toISOString();
             await addDoc(collection(db, 'ministry_studies'), {
               ...studyData,
-              createdAt: new Date().toISOString()
+              createdAt: now,
+              updatedAt: now,
+              updatedBy: 'tracker-import'
             });
           }
         }
