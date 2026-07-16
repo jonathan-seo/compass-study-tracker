@@ -263,15 +263,44 @@ export function inferLaunchProfiles(study) {
   return profiles;
 }
 
-function studyEndDate(study, plan) {
+export function getStudyEndDate(study, plan = study.launchPlan || {}) {
   if (DATE_PATTERN.test(plan.studyEndDate || '')) return plan.studyEndDate;
   const weeks = Number.isInteger(study.weeks) ? study.weeks : Number(study.weeks || 6);
   return addDays(study.startDate, Math.max(1, weeks) * 7);
 }
 
+function localDateValue(value) {
+  if (typeof value === 'string') return value;
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return '';
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function isStudyPast(study, today = new Date()) {
+  const todayValue = localDateValue(today);
+  const endDate = getStudyEndDate(study);
+  return DATE_PATTERN.test(todayValue) && DATE_PATTERN.test(endDate) && endDate < todayValue;
+}
+
+export function getDefaultMinistryYearStart(studies, today = new Date()) {
+  const todayValue = localDateValue(today);
+  const remainingStudies = (studies || [])
+    .filter((study) => !isStudyPast(study, todayValue))
+    .filter((study) => DATE_PATTERN.test(study.startDate || ''))
+    .sort((left, right) => left.startDate.localeCompare(right.startDate));
+  const referenceDate = remainingStudies[0]?.startDate || todayValue;
+  const year = Number(referenceDate.slice(0, 4));
+  const month = Number(referenceDate.slice(5, 7));
+
+  // Once summer begins, an empty tracker should open on the coming ministry year.
+  return month >= 9 || (remainingStudies.length === 0 && month >= 7) ? year : year - 1;
+}
+
 function resolveAnchor(study, plan, anchor) {
   if (anchor === 'public_launch_date') return plan.publicLaunchDate || addDays(study.startDate, -42);
-  if (anchor === 'study_end_date') return studyEndDate(study, plan);
+  if (anchor === 'study_end_date') return getStudyEndDate(study, plan);
   return study.startDate;
 }
 
@@ -303,7 +332,7 @@ export function createLaunchPlan(study, existingPlan = {}) {
     pageMode,
     productionPath,
     publicLaunchDate: existingPlan.publicLaunchDate || addDays(study.startDate, -42),
-    studyEndDate: existingPlan.studyEndDate || studyEndDate(study, existingPlan),
+    studyEndDate: existingPlan.studyEndDate || getStudyEndDate(study, existingPlan),
     independentProofObtained: Boolean(existingPlan.independentProofObtained),
     checkpoints: [],
   };

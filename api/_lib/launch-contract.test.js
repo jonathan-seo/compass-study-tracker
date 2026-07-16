@@ -3,7 +3,10 @@ import test from 'node:test';
 
 import {
   createLaunchPlan,
+  getDefaultMinistryYearStart,
   getLaunchSummary,
+  getStudyEndDate,
+  isStudyPast,
   sanitizeLaunchPlan,
 } from './launch-contract.js';
 
@@ -88,6 +91,25 @@ test('summarizes overdue, blocked, and completion state', () => {
   assert.equal(summary.blocked, 1);
   assert.equal(summary.overdue > 0, true);
   assert.equal(summary.nextCheckpoint.id, 'master_brief_ready');
+});
+
+test('identifies past studies from an explicit or calculated end date', () => {
+  assert.equal(getStudyEndDate(orangevilleMonday), '2026-11-16');
+  assert.equal(isStudyPast(orangevilleMonday, '2026-11-17'), true);
+  assert.equal(isStudyPast(orangevilleMonday, '2026-11-16'), false);
+  assert.equal(isStudyPast({
+    ...orangevilleMonday,
+    launchPlan: { studyEndDate: '2026-10-30' },
+  }, '2026-10-31'), true);
+});
+
+test('defaults the calendar to the earliest active or upcoming ministry year', () => {
+  const pastStudy = { ...orangevilleMonday, startDate: '2025-09-22', weeks: 8 };
+  const upcomingStudy = { ...orangevilleMonday, startDate: '2026-09-21' };
+
+  assert.equal(getDefaultMinistryYearStart([pastStudy, upcomingStudy], '2026-07-16'), 2026);
+  assert.equal(getDefaultMinistryYearStart([pastStudy], '2026-07-16'), 2026);
+  assert.equal(getDefaultMinistryYearStart([], '2026-02-16'), 2025);
 });
 
 test('calculates readiness without post-launch follow-up or a manual final checkbox', () => {

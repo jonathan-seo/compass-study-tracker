@@ -38,8 +38,10 @@ import {
   PLANNING_CENTER_PRODUCTION_PATHS,
   createLaunchPlan,
   effectiveDueDate,
+  getDefaultMinistryYearStart,
   getLaunchSummary,
   getUnmetDependencies,
+  isStudyPast,
 } from '../api/_lib/launch-contract.js';
 
 const STAGE_INDEXES = { planning: 0, approval: 1, sourcing: 2, promotion: 3, active: 4, review: 5 };
@@ -451,14 +453,17 @@ const App = () => {
   };
 
   const LaunchAttentionView = () => {
-    const rows = studies.map((study) => ({ study, summary: getLaunchSummary(study) })).sort((left, right) => {
-      if (left.summary.enabled !== right.summary.enabled) return left.summary.enabled ? -1 : 1;
-      if (left.summary.blocked !== right.summary.blocked) return right.summary.blocked - left.summary.blocked;
-      if (left.summary.overdue !== right.summary.overdue) return right.summary.overdue - left.summary.overdue;
-      const leftDue = effectiveDueDate(left.summary.nextCheckpoint || {}) || '9999-12-31';
-      const rightDue = effectiveDueDate(right.summary.nextCheckpoint || {}) || '9999-12-31';
-      return leftDue.localeCompare(rightDue);
-    });
+    const rows = studies
+      .filter((study) => !isStudyPast(study))
+      .map((study) => ({ study, summary: getLaunchSummary(study) }))
+      .sort((left, right) => {
+        if (left.summary.enabled !== right.summary.enabled) return left.summary.enabled ? -1 : 1;
+        if (left.summary.blocked !== right.summary.blocked) return right.summary.blocked - left.summary.blocked;
+        if (left.summary.overdue !== right.summary.overdue) return right.summary.overdue - left.summary.overdue;
+        const leftDue = effectiveDueDate(left.summary.nextCheckpoint || {}) || '9999-12-31';
+        const rightDue = effectiveDueDate(right.summary.nextCheckpoint || {}) || '9999-12-31';
+        return leftDue.localeCompare(rightDue);
+      });
     const activeRows = rows.filter(({ summary }) => summary.enabled);
     const blocked = activeRows.reduce((total, { summary }) => total + summary.blocked, 0);
     const overdue = activeRows.reduce((total, { summary }) => total + summary.overdue, 0);
@@ -483,7 +488,7 @@ const App = () => {
             <span>Study</span><span>Readiness</span><span>Attention</span><span>Next checkpoint</span><span></span>
           </div>
           {rows.length === 0 ? (
-            <div className="px-6 py-16 text-center text-slate-500">No studies are in the tracker yet.</div>
+            <div className="px-6 py-16 text-center text-slate-500">No current or upcoming studies need a launch checklist.</div>
           ) : rows.map(({ study, summary }) => {
             const ministry = MINISTRIES[study.ministryId.toUpperCase()] || MINISTRIES.MENS;
             const nextDue = effectiveDueDate(summary.nextCheckpoint || {});
@@ -1148,10 +1153,7 @@ const App = () => {
   };
 
   const CalendarView = () => {
-    const today = new Date();
-    const currentYear = today.getFullYear();
-    const currentMonth = today.getMonth(); // 0-11
-    const defaultStartYear = currentMonth >= 8 ? currentYear : currentYear - 1;
+    const defaultStartYear = getDefaultMinistryYearStart(studies);
     
     const [startYear, setStartYear] = useState(defaultStartYear);
     const endYear = startYear + 1;
