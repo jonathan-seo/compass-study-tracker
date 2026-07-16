@@ -26,8 +26,21 @@ import {
   LogOut,
   Upload,
   Check,
-  AlertCircle
+  AlertCircle,
+  ListChecks,
+  RefreshCcw
 } from 'lucide-react';
+
+import {
+  LAUNCH_PROFILE_IDS,
+  LAUNCH_PROFILE_LABELS,
+  LAUNCH_STATUSES,
+  PLANNING_CENTER_PAGE_MODES,
+  PLANNING_CENTER_PRODUCTION_PATHS,
+  createLaunchPlan,
+  effectiveDueDate,
+  getLaunchSummary,
+} from '../api/_lib/launch-contract.js';
 
 const STAGE_INDEXES = { planning: 0, approval: 1, sourcing: 2, promotion: 3, active: 4, review: 5 };
 const getStudyWarnings = (study) => {
@@ -96,6 +109,56 @@ const OPTIONS = {
 
 const LOCATIONS = ["Orangeville", "Shelburne", "Grand Valley", "Other"];
 
+const LAUNCH_STATUS_LABELS = {
+  not_started: 'Not started',
+  in_progress: 'In progress',
+  waiting_on_owner: 'Waiting on owner',
+  blocked: 'Blocked',
+  done: 'Done',
+  not_required: 'Not required',
+  accepted_risk: 'Accepted risk',
+};
+
+const PAGE_MODE_LABELS = {
+  information_only: 'Information only (current default)',
+  optional_signup: 'Optional signup',
+  required_signup: 'Required signup',
+  paid_registration: 'Paid registration',
+  not_required: 'No public Planning Center page',
+};
+
+const PRODUCTION_PATH_LABELS = {
+  admin_handoff: 'Hand off to Director of Admin',
+  jonathan_self_service: 'Jonathan builds or corrects',
+  other_owner: 'Another owner',
+};
+
+const OPTIONAL_LAUNCH_PROFILES = LAUNCH_PROFILE_IDS.filter((profile) => ![
+  'universal_core',
+  'planning_center_information_page',
+].includes(profile));
+
+const emptyStudyForm = (stage = 'planning') => ({
+  title: '',
+  ministryId: 'mens',
+  stage,
+  location: 'Orangeville',
+  startDate: new Date().toISOString().split('T')[0],
+  weeks: 6,
+  studyMaterial: 'Not Started',
+  physicalResources: 'Not required',
+  digitalResources: 'Not required',
+  imageUrl: '',
+  resourcesObtained: false,
+  websiteUpdated: false,
+  liveTracking: 'Not started',
+  postReview: 'Not Started',
+  notes: '',
+  promoText: '',
+  updates: '',
+  launchPlan: null,
+});
+
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -119,25 +182,7 @@ const App = () => {
   const [authError, setAuthError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  const [formData, setFormData] = useState({
-    title: '', 
-    ministryId: 'mens', 
-    stage: 'planning', 
-    location: 'Orangeville', 
-    startDate: new Date().toISOString().split('T')[0],
-    weeks: 6,
-    studyMaterial: 'Not Started',
-    physicalResources: 'Not required',
-    digitalResources: 'Not required',
-    imageUrl: '',
-    resourcesObtained: false,
-    websiteUpdated: false,
-    liveTracking: 'Not started',
-    postReview: 'Not Started',
-    notes: '', 
-    promoText: '',
-    updates: ''
-  });
+  const [formData, setFormData] = useState(() => emptyStudyForm());
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -207,40 +252,66 @@ const App = () => {
   const handleOpenModal = (study = null, targetStage = null) => {
     if (study) {
       setEditingStudy(study);
-      setFormData({ 
-        weeks: 6,
-        studyMaterial: 'Not Started',
-        physicalResources: 'Not required',
-        digitalResources: 'Not required',
-        resourcesObtained: false,
-        websiteUpdated: false,
-        liveTracking: 'Not started',
-        postReview: 'Not Started',
-        promoText: '',
-        ...study 
-      });
+      setFormData({ ...emptyStudyForm(study.stage), ...study });
     } else {
       setEditingStudy(null);
-      setFormData({
-        title: '', 
-        ministryId: 'mens', 
-        stage: targetStage || activeStage, 
-        location: 'Orangeville', 
-        startDate: new Date().toISOString().split('T')[0],
-        weeks: 6,
-        studyMaterial: 'Not Started',
-        physicalResources: 'Not required',
-        digitalResources: 'Not required',
-        resourcesObtained: false,
-        websiteUpdated: false,
-        liveTracking: 'Not started',
-        postReview: 'Not Started',
-        notes: '', 
-        promoText: '',
-        updates: ''
-      });
+      setFormData(emptyStudyForm(targetStage || activeStage));
     }
     setIsModalOpen(true);
+  };
+
+  const updateStudyField = (field, value) => {
+    setFormData((current) => {
+      const next = { ...current, [field]: value };
+      if (current.launchPlan && ['startDate', 'weeks', 'physicalResources', 'digitalResources'].includes(field)) {
+        next.launchPlan = createLaunchPlan(next, current.launchPlan);
+      }
+      return next;
+    });
+  };
+
+  const enableLaunchPlan = () => {
+    setFormData((current) => ({ ...current, launchPlan: createLaunchPlan(current) }));
+  };
+
+  const updateLaunchPlan = (changes, recalculate = true) => {
+    setFormData((current) => {
+      const draft = { ...current.launchPlan, ...changes };
+      return {
+        ...current,
+        launchPlan: recalculate ? createLaunchPlan(current, draft) : draft,
+      };
+    });
+  };
+
+  const toggleLaunchProfile = (profile) => {
+    setFormData((current) => {
+      const profiles = current.launchPlan.profiles.includes(profile)
+        ? current.launchPlan.profiles.filter((item) => item !== profile)
+        : [...current.launchPlan.profiles, profile];
+      return { ...current, launchPlan: createLaunchPlan(current, { ...current.launchPlan, profiles }) };
+    });
+  };
+
+  const updateCheckpoint = (checkpointId, changes) => {
+    setFormData((current) => {
+      const today = new Date().toISOString().slice(0, 10);
+      const checkpoints = current.launchPlan.checkpoints.map((checkpoint) => {
+        if (checkpoint.id !== checkpointId) return checkpoint;
+        const updated = { ...checkpoint, ...changes };
+        if (changes.status) updated.completedAt = changes.status === 'done' ? (checkpoint.completedAt || today) : '';
+        return updated;
+      });
+      const proof = checkpoints.find((checkpoint) => checkpoint.id === 'planning_center_independent_proof');
+      return {
+        ...current,
+        launchPlan: {
+          ...current.launchPlan,
+          checkpoints,
+          independentProofObtained: proof ? proof.status === 'done' : current.launchPlan.independentProofObtained,
+        },
+      };
+    });
   };
 
   const handleSave = async (e) => {
@@ -277,6 +348,7 @@ const App = () => {
   const StudyCard = ({ study, compact = false }) => {
     const ministry = MINISTRIES[study.ministryId.toUpperCase()] || MINISTRIES.MENS;
     const isDragging = draggedId === study.id;
+    const launchSummary = getLaunchSummary(study);
     
     const getStatusColor = (val) => {
       if (val?.includes('Approved') || val?.includes('available') || val?.includes('distributed')) return 'text-emerald-700 bg-emerald-50 border-emerald-200';
@@ -320,8 +392,17 @@ const App = () => {
                     </div>
                   );
                 })()}
+                {launchSummary.enabled && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5 pointer-events-none">
+                    <span className={`flex items-center gap-1 rounded border font-semibold ${compact ? 'text-[9px] px-1.5 py-0.5' : 'text-xs px-2.5 py-1'} ${launchSummary.blocked ? 'border-red-200 bg-red-50 text-red-700' : launchSummary.overdue ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-teal-200 bg-teal-50 text-teal-800'}`}>
+                      <ListChecks size={compact ? 11 : 14} /> Launch {launchSummary.readinessPercent}%
+                    </span>
+                    {launchSummary.blocked > 0 && <span className="text-[10px] font-semibold text-red-700">{launchSummary.blocked} blocked</span>}
+                    {launchSummary.overdue > 0 && <span className="text-[10px] font-semibold text-amber-800">{launchSummary.overdue} overdue</span>}
+                  </div>
+                )}
               </div>
-              <button onClick={() => handleOpenModal(study)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md opacity-0 group-hover:opacity-100 transition-all">
+              <button aria-label={`Edit ${study.title}`} title="Edit study" onClick={() => handleOpenModal(study)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all">
                 <MoreVertical size={compact ? 16 : 20} />
               </button>
             </div>
@@ -351,6 +432,74 @@ const App = () => {
               {compact && study.weeks && <span className="flex items-center gap-1.5"><Clock size={10}/> {study.weeks}w</span>}
             </div>
           </div>
+        </div>
+      </div>
+    );
+  };
+
+  const LaunchAttentionView = () => {
+    const rows = studies.map((study) => ({ study, summary: getLaunchSummary(study) })).sort((left, right) => {
+      if (left.summary.enabled !== right.summary.enabled) return left.summary.enabled ? -1 : 1;
+      if (left.summary.blocked !== right.summary.blocked) return right.summary.blocked - left.summary.blocked;
+      if (left.summary.overdue !== right.summary.overdue) return right.summary.overdue - left.summary.overdue;
+      const leftDue = effectiveDueDate(left.summary.nextCheckpoint || {}) || '9999-12-31';
+      const rightDue = effectiveDueDate(right.summary.nextCheckpoint || {}) || '9999-12-31';
+      return leftDue.localeCompare(rightDue);
+    });
+    const activeRows = rows.filter(({ summary }) => summary.enabled);
+    const blocked = activeRows.reduce((total, { summary }) => total + summary.blocked, 0);
+    const overdue = activeRows.reduce((total, { summary }) => total + summary.overdue, 0);
+    const dueSoon = activeRows.reduce((total, { summary }) => total + summary.dueSoon, 0);
+
+    return (
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
+          <div>
+            <h2 className="text-2xl font-semibold text-slate-900">Launch attention</h2>
+            <p className="text-sm text-slate-500 mt-1">The next work needed to get every study ready on time.</p>
+          </div>
+          <div className="grid grid-cols-3 border border-slate-200 rounded-lg bg-white overflow-hidden min-w-[300px]">
+            <div className="px-4 py-3 border-r border-slate-200"><div className="text-xl font-semibold text-red-700">{blocked}</div><div className="text-[10px] uppercase font-semibold text-slate-500">Blocked</div></div>
+            <div className="px-4 py-3 border-r border-slate-200"><div className="text-xl font-semibold text-amber-700">{overdue}</div><div className="text-[10px] uppercase font-semibold text-slate-500">Overdue</div></div>
+            <div className="px-4 py-3"><div className="text-xl font-semibold text-teal-700">{dueSoon}</div><div className="text-[10px] uppercase font-semibold text-slate-500">Due soon</div></div>
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+          <div className="hidden lg:grid grid-cols-[minmax(220px,1.4fr)_110px_110px_minmax(260px,1.6fr)_90px] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-semibold text-slate-500">
+            <span>Study</span><span>Readiness</span><span>Attention</span><span>Next checkpoint</span><span></span>
+          </div>
+          {rows.length === 0 ? (
+            <div className="px-6 py-16 text-center text-slate-500">No studies are in the tracker yet.</div>
+          ) : rows.map(({ study, summary }) => {
+            const ministry = MINISTRIES[study.ministryId.toUpperCase()] || MINISTRIES.MENS;
+            const nextDue = effectiveDueDate(summary.nextCheckpoint || {});
+            return (
+              <div key={study.id} className="grid lg:grid-cols-[minmax(220px,1.4fr)_110px_110px_minmax(260px,1.6fr)_90px] gap-3 lg:gap-4 items-center px-5 py-4 border-b border-slate-100 last:border-b-0">
+                <div className="min-w-0">
+                  <div className="font-semibold text-slate-900 truncate">{study.title}</div>
+                  <div className="text-xs text-slate-500 mt-1">{ministry.name} · {study.startDate}</div>
+                </div>
+                {summary.enabled ? (
+                  <>
+                    <div>
+                      <div className="flex items-center justify-between text-xs font-semibold text-slate-700 mb-1"><span>{summary.readinessPercent}%</span><span>{summary.complete}/{summary.total}</span></div>
+                      <div className="h-1.5 bg-slate-100 rounded overflow-hidden"><div className="h-full bg-teal-600" style={{ width: `${summary.readinessPercent}%` }} /></div>
+                    </div>
+                    <div className="text-xs font-semibold">
+                      {summary.blocked > 0 ? <span className="text-red-700">{summary.blocked} blocked</span> : summary.overdue > 0 ? <span className="text-amber-800">{summary.overdue} overdue</span> : <span className="text-teal-700">On track</span>}
+                    </div>
+                    <div className="min-w-0">
+                      {summary.nextCheckpoint ? <><div className="text-sm font-medium text-slate-800 truncate">{summary.nextCheckpoint.title}</div><div className="text-xs text-slate-500 mt-1">Due {nextDue || 'date not set'} · {LAUNCH_STATUS_LABELS[summary.nextCheckpoint.status]}</div></> : <span className="text-sm text-teal-700 font-medium">Launch checklist complete</span>}
+                    </div>
+                  </>
+                ) : (
+                  <div className="lg:col-span-3 text-sm text-slate-500">Launch checklist not set up.</div>
+                )}
+                <button type="button" onClick={() => handleOpenModal(study)} className="justify-self-start lg:justify-self-end px-3 py-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-700 hover:bg-slate-50">{summary.enabled ? 'Open' : 'Set up'}</button>
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -534,7 +683,7 @@ const App = () => {
         'weeks', 'location', 'stage', 'notes', 'studyMaterial', 
         'physicalResources', 'digitalResources', 'imageUrl', 
         'resourcesObtained', 'websiteUpdated', 'liveTracking', 
-        'postReview', 'promoText', 'updates'
+        'postReview', 'promoText', 'updates', 'launchPlan'
       ];
       
       fieldsToCheck.forEach(field => {
@@ -553,6 +702,13 @@ const App = () => {
         if (field === 'weeks') {
           if (Number(valExist || 6) !== Number(valImport || 6)) {
             diffs[field] = { existing: Number(valExist || 6), imported: Number(valImport || 6) };
+          }
+          return;
+        }
+
+        if (field === 'launchPlan') {
+          if (JSON.stringify(valExist || null) !== JSON.stringify(valImport || null)) {
+            diffs[field] = { existing: valExist || null, imported: valImport || null };
           }
           return;
         }
@@ -730,6 +886,9 @@ const App = () => {
             promoText: item.imported.promoText || '',
             updates: item.imported.updates || ''
           };
+          if (item.imported.launchPlan) {
+            studyData.launchPlan = createLaunchPlan(studyData, item.imported.launchPlan);
+          }
           
           if (item.existing) {
             await updateDoc(doc(db, 'ministry_studies', item.existing.id), {
@@ -1343,11 +1502,17 @@ const App = () => {
             >
               <Columns size={16} /> Pipeline
             </button>
-            <button 
-              onClick={() => setViewMode('calendar')} 
+            <button
+              onClick={() => setViewMode('calendar')}
               className={`flex items-center gap-2 px-3 md:px-4 py-1.5 rounded text-sm font-medium transition-colors ${viewMode === 'calendar' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
             >
               <Calendar size={16} /> Calendar
+            </button>
+            <button
+              onClick={() => setViewMode('launch')}
+              className={`flex items-center gap-2 px-3 md:px-4 py-1.5 rounded text-sm font-medium transition-colors ${viewMode === 'launch' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
+            >
+              <ListChecks size={16} /> Launch
             </button>
           </div>
         </div>
@@ -1369,7 +1534,9 @@ const App = () => {
       </header>
 
       <main className="w-full mx-auto p-6">
-        {viewMode === 'detail' ? (
+        {viewMode === 'launch' ? (
+          <LaunchAttentionView />
+        ) : viewMode === 'detail' ? (
           <div className="flex flex-col lg:flex-row gap-8 max-w-7xl mx-auto">
             <aside className="lg:w-64 flex-shrink-0">
               <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 ml-2">Workflow Stages</h3>
@@ -1495,13 +1662,13 @@ const App = () => {
                   </div>
                   <div>
                     <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Start Date</label>
-                    <input type="date" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-blue-100 outline-none transition-all" value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} />
+                    <input type="date" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-blue-100 outline-none transition-all" value={formData.startDate} onChange={e => updateStudyField('startDate', e.target.value)} />
                   </div>
                   <div>
                     <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Number of Weeks</label>
                     <div className="relative">
                       <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                      <input type="number" className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-5 py-4 font-bold text-sm focus:ring-4 focus:ring-blue-100 outline-none transition-all" value={formData.weeks} onChange={e => setFormData({...formData, weeks: parseInt(e.target.value) || 0})} />
+                      <input type="number" className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-5 py-4 font-bold text-sm focus:ring-4 focus:ring-blue-100 outline-none transition-all" value={formData.weeks} onChange={e => updateStudyField('weeks', parseInt(e.target.value) || 0)} />
                     </div>
                   </div>
                 </div>
@@ -1531,13 +1698,13 @@ const App = () => {
                   </div>
                   <div>
                     <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Physical Resources</label>
-                    <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-emerald-100 outline-none transition-all" value={formData.physicalResources} onChange={e => setFormData({...formData, physicalResources: e.target.value})}>
+                    <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-emerald-100 outline-none transition-all" value={formData.physicalResources} onChange={e => updateStudyField('physicalResources', e.target.value)}>
                       {OPTIONS.PHYSICAL_RESOURCES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Digital Resources</label>
-                    <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-emerald-100 outline-none transition-all" value={formData.digitalResources} onChange={e => setFormData({...formData, digitalResources: e.target.value})}>
+                    <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-emerald-100 outline-none transition-all" value={formData.digitalResources} onChange={e => updateStudyField('digitalResources', e.target.value)}>
                       {OPTIONS.DIGITAL_RESOURCES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                     </select>
                   </div>
@@ -1548,6 +1715,110 @@ const App = () => {
                     </select>
                   </div>
                 </div>
+              </div>
+
+              <div className="space-y-6 pt-6 border-t border-slate-100">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-teal-700">
+                    <ListChecks size={18} strokeWidth={3} />
+                    <h3 className="text-xs font-black uppercase tracking-[0.2em]">Launch Readiness</h3>
+                  </div>
+                  {formData.launchPlan && (
+                    <button type="button" onClick={() => setFormData((current) => ({ ...current, launchPlan: createLaunchPlan(current, current.launchPlan) }))} className="flex items-center gap-2 px-3 py-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-700 hover:bg-slate-50 self-start">
+                      <RefreshCcw size={14} /> Recalculate dates
+                    </button>
+                  )}
+                </div>
+
+                {!formData.launchPlan ? (
+                  <div className="border border-dashed border-teal-300 bg-teal-50/40 rounded-lg p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <div className="font-semibold text-slate-900">Create a dated launch checklist</div>
+                      <p className="text-sm text-slate-600 mt-1">Starts with the universal workflow and information-only Planning Center page.</p>
+                    </div>
+                    <button type="button" onClick={enableLaunchPlan} className="px-4 py-2.5 rounded-md bg-teal-700 text-white text-sm font-semibold hover:bg-teal-800 self-start">Create checklist</button>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Planning Center page mode</label>
+                        <select value={formData.launchPlan.pageMode} onChange={(e) => updateLaunchPlan({ pageMode: e.target.value })} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-teal-500 outline-none">
+                          {PLANNING_CENTER_PAGE_MODES.map((mode) => <option key={mode} value={mode}>{PAGE_MODE_LABELS[mode]}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Page production path</label>
+                        <select value={formData.launchPlan.productionPath} onChange={(e) => updateLaunchPlan({ productionPath: e.target.value })} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-teal-500 outline-none">
+                          {PLANNING_CENTER_PRODUCTION_PATHS.map((path) => <option key={path} value={path}>{PRODUCTION_PATH_LABELS[path]}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Public launch date</label>
+                        <input type="date" value={formData.launchPlan.publicLaunchDate} onChange={(e) => updateLaunchPlan({ publicLaunchDate: e.target.value })} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-teal-500 outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Kickoff date, if different</label>
+                        <input type="date" value={formData.launchPlan.kickoffDate} onChange={(e) => updateLaunchPlan({ kickoffDate: e.target.value })} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-teal-500 outline-none" />
+                      </div>
+                    </div>
+
+                    <fieldset>
+                      <legend className="text-xs font-semibold text-slate-500 mb-2">Apply the workflow sections this study needs</legend>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {OPTIONAL_LAUNCH_PROFILES.map((profile) => (
+                          <label key={profile} className="flex items-center gap-3 px-3 py-2.5 border border-slate-200 rounded-md text-sm text-slate-700 cursor-pointer hover:bg-slate-50">
+                            <input type="checkbox" checked={formData.launchPlan.profiles.includes(profile)} onChange={() => toggleLaunchProfile(profile)} className="w-4 h-4 rounded border-slate-300 text-teal-700 focus:ring-teal-600" />
+                            {LAUNCH_PROFILE_LABELS[profile]}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+
+                    {formData.launchPlan.productionPath === 'jonathan_self_service' && (
+                      <div className="flex items-start gap-3 px-4 py-3 border border-amber-200 bg-amber-50 rounded-md">
+                        <AlertCircle size={18} className="text-amber-700 mt-0.5 flex-shrink-0" />
+                        <p className="text-sm text-amber-900">Independent proof is required only when Jonathan builds or materially corrects the page. Complete that checkpoint after someone has checked it.</p>
+                      </div>
+                    )}
+
+                    <div className="border border-slate-200 rounded-lg overflow-hidden">
+                      <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                        <span className="text-sm font-semibold text-slate-800">Checkpoints</span>
+                        <span className="text-xs text-slate-500">{getLaunchSummary(formData).complete}/{getLaunchSummary(formData).total} complete</span>
+                      </div>
+                      {formData.launchPlan.checkpoints.map((checkpoint) => (
+                        <div key={checkpoint.id} className="p-4 border-b border-slate-100 last:border-b-0 space-y-3">
+                          <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="font-semibold text-slate-900">{checkpoint.title}</div>
+                              <p className="text-xs text-slate-500 mt-1 leading-relaxed">{checkpoint.description}</p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 flex-shrink-0">
+                              <select aria-label={`${checkpoint.title} status`} value={checkpoint.status} onChange={(e) => updateCheckpoint(checkpoint.id, { status: e.target.value })} className="border border-slate-300 rounded-md px-2.5 py-2 text-xs font-semibold bg-white focus:ring-2 focus:ring-teal-500 outline-none">
+                                {LAUNCH_STATUSES.map((status) => <option key={status} value={status}>{LAUNCH_STATUS_LABELS[status]}</option>)}
+                              </select>
+                              <input aria-label={`${checkpoint.title} due date`} title={`Calculated: ${checkpoint.calculatedDueDate || 'not set'}`} type="date" value={checkpoint.dueDateOverride || checkpoint.calculatedDueDate} onChange={(e) => updateCheckpoint(checkpoint.id, { dueDateOverride: e.target.value === checkpoint.calculatedDueDate ? '' : e.target.value })} className="border border-slate-300 rounded-md px-2.5 py-2 text-xs font-semibold bg-white focus:ring-2 focus:ring-teal-500 outline-none" />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-2">
+                            <input aria-label={`${checkpoint.title} owner`} placeholder="Owner" value={checkpoint.owner} onChange={(e) => updateCheckpoint(checkpoint.id, { owner: e.target.value })} className="border border-slate-200 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
+                            <input aria-label={`${checkpoint.title} next action`} placeholder="Next action" value={checkpoint.nextAction} onChange={(e) => updateCheckpoint(checkpoint.id, { nextAction: e.target.value })} className="border border-slate-200 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
+                          </div>
+                          {(checkpoint.status === 'blocked' || checkpoint.blocker) && (
+                            <input aria-label={`${checkpoint.title} blocker`} placeholder="What is blocking this?" value={checkpoint.blocker} onChange={(e) => updateCheckpoint(checkpoint.id, { blocker: e.target.value })} className="w-full border border-red-200 bg-red-50 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-red-400 outline-none" />
+                          )}
+                          <details className="text-xs text-slate-500">
+                            <summary className="cursor-pointer font-semibold hover:text-slate-700">Evidence or link</summary>
+                            <textarea rows={2} aria-label={`${checkpoint.title} evidence`} value={checkpoint.evidence} onChange={(e) => updateCheckpoint(checkpoint.id, { evidence: e.target.value })} className="mt-2 w-full border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-teal-500 outline-none" placeholder="Record the URL, confirmation, or note that proves this is complete." />
+                          </details>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button type="button" onClick={() => setFormData((current) => ({ ...current, launchPlan: null }))} className="text-xs font-semibold text-slate-500 hover:text-red-700">Remove launch checklist</button>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-6 pt-6 border-t border-slate-100">

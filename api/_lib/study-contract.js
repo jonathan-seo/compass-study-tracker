@@ -1,3 +1,5 @@
+import { getLaunchSummary, sanitizeLaunchPlan } from './launch-contract.js';
+
 export const MINISTRY_IDS = [
   'mens',
   'womens_mon',
@@ -46,6 +48,7 @@ export const WRITABLE_FIELDS = [
   'notes',
   'promoText',
   'updates',
+  'launchPlan',
 ];
 
 const DEFAULTS = {
@@ -116,6 +119,14 @@ export function getActionSignals(study) {
     signals.push({ code: 'post-review', label: `Post-study review: ${study.postReview || 'Not Started'}` });
   }
 
+  const launchSummary = getLaunchSummary(study);
+  if (launchSummary.enabled && launchSummary.blocked > 0) {
+    signals.push({ code: 'launch-blocked', label: `${launchSummary.blocked} launch checkpoint${launchSummary.blocked === 1 ? '' : 's'} blocked` });
+  }
+  if (launchSummary.enabled && launchSummary.overdue > 0) {
+    signals.push({ code: 'launch-overdue', label: `${launchSummary.overdue} launch checkpoint${launchSummary.overdue === 1 ? '' : 's'} overdue` });
+  }
+
   return signals;
 }
 
@@ -124,6 +135,7 @@ export function enrichStudy(study) {
   return {
     ...study,
     ministryYear: ministryYearForDate(study.startDate),
+    launchSummary: getLaunchSummary(study),
     actionSignals,
     needsAction: actionSignals.length > 0,
   };
@@ -161,6 +173,13 @@ export function sanitizeStudyChanges(input, { creating = false } = {}) {
     if (BOOLEAN_FIELDS.includes(field)) {
       if (typeof value !== 'boolean') errors.push(`${field} must be a boolean.`);
       else changes[field] = value;
+      continue;
+    }
+
+    if (field === 'launchPlan') {
+      const result = sanitizeLaunchPlan(value);
+      errors.push(...result.errors);
+      if (result.launchPlan) changes.launchPlan = result.launchPlan;
       continue;
     }
 

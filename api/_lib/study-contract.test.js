@@ -67,3 +67,36 @@ test('study identity is stable across casing and whitespace', () => {
     'luke|womens_mon|2026-09-21',
   );
 });
+
+test('accepts a validated launch plan as a writable nested field', () => {
+  const result = sanitizeStudyChanges({
+    launchPlan: {
+      version: 1,
+      enabled: true,
+      profiles: ['universal_core', 'planning_center_information_page'],
+      pageMode: 'information_only',
+      productionPath: 'admin_handoff',
+      publicLaunchDate: '2026-08-10',
+      kickoffDate: '',
+      studyEndDate: '2026-11-16',
+      independentProofObtained: false,
+      checkpoints: [{
+        id: 'facts_locked',
+        title: 'Public facts confirmed',
+        description: '',
+        owner: 'Jonathan',
+        status: 'done',
+        calculatedDueDate: '2026-07-27',
+        dueDateOverride: '',
+        nextAction: '',
+        blocker: '',
+        evidence: 'Confirmed from ministry calendar',
+        completedAt: '2026-07-16',
+      }],
+    },
+  });
+
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.changes.launchPlan.pageMode, 'information_only');
+  assert.equal(result.changes.launchPlan.checkpoints[0].status, 'done');
+});
