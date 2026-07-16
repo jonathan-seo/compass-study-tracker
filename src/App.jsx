@@ -1619,11 +1619,11 @@ const App = () => {
 
       {/* Expanded Modal with Restored Fields */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
-          <div className="bg-white rounded-[3.5rem] shadow-2xl w-full max-w-4xl my-auto overflow-hidden animate-in zoom-in-95 duration-300">
-            <div className="p-10 border-b flex items-center justify-between bg-slate-50/50 sticky top-0 z-10">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
+          <div className="bg-white rounded-lg md:rounded-[3.5rem] shadow-2xl w-full max-w-4xl my-auto overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="p-5 md:p-10 border-b flex items-center justify-between bg-slate-50/50 sticky top-0 z-10">
               <div>
-                <h2 className="text-3xl font-black text-slate-800 tracking-tight leading-none">{editingStudy ? 'Update Study' : 'Register New Study'}</h2>
+                <h2 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight leading-none">{editingStudy ? 'Update Study' : 'Register New Study'}</h2>
                 <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mt-2">Discipleship Pathway Documentation</p>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="p-4 hover:bg-white border border-transparent hover:border-slate-200 rounded-3xl transition-all shadow-sm hover:shadow-md">
@@ -1631,7 +1631,7 @@ const App = () => {
               </button>
             </div>
             
-            <form onSubmit={handleSave} className="p-10 space-y-10 max-h-[70vh] overflow-y-auto custom-scrollbar">
+            <form onSubmit={handleSave} className="p-5 md:p-10 space-y-10 max-h-[70vh] overflow-y-auto custom-scrollbar">
               
               <div className="space-y-6">
                 <div className="flex items-center gap-2 text-blue-600">
@@ -1864,12 +1864,12 @@ const App = () => {
                 </div>
               </div>
 
-              <div className="flex gap-4 pt-10 justify-end border-t border-slate-100 sticky bottom-0 bg-white pb-2">
+              <div className="flex flex-wrap gap-2 md:gap-4 pt-10 justify-end border-t border-slate-100 pb-2">
                 {editingStudy && (
-                  <button type="button" onClick={() => handleDelete(editingStudy.id)} className="px-8 py-4 font-black text-[10px] text-rose-500 uppercase tracking-widest hover:bg-rose-50 rounded-2xl transition-all">Delete</button>
+                  <button type="button" onClick={() => handleDelete(editingStudy.id)} className="px-4 md:px-8 py-4 font-black text-[10px] text-rose-500 uppercase tracking-widest hover:bg-rose-50 rounded-2xl transition-all">Delete</button>
                 )}
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-8 py-4 font-bold text-slate-400">Cancel</button>
-                <button type="submit" className="bg-slate-900 px-12 py-4 rounded-[2rem] font-black text-base text-white shadow-2xl shadow-slate-200 flex items-center gap-3 active:scale-95 transition-all">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 md:px-8 py-4 font-bold text-slate-400">Cancel</button>
+                <button type="submit" className="bg-slate-900 px-6 md:px-12 py-4 rounded-[2rem] font-black text-base text-white shadow-2xl shadow-slate-200 flex items-center gap-3 active:scale-95 transition-all">
                   <Save size={20} strokeWidth={3} /> {editingStudy ? 'Update' : 'Save'}
                 </button>
               </div>
