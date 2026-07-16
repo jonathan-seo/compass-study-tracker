@@ -33,19 +33,19 @@ import {
 } from 'lucide-react';
 
 import {
-  LAUNCH_PROFILE_IDS,
-  LAUNCH_PROFILE_LABELS,
   LAUNCH_STATUSES,
   PLANNING_CENTER_PAGE_MODES,
   PLANNING_CENTER_PRODUCTION_PATHS,
   createLaunchPlan,
   effectiveDueDate,
   getLaunchSummary,
+  getUnmetDependencies,
 } from '../api/_lib/launch-contract.js';
 
 const STAGE_INDEXES = { planning: 0, approval: 1, sourcing: 2, promotion: 3, active: 4, review: 5 };
 const getStudyWarnings = (study) => {
-  const isPastApproval = STAGE_INDEXES[study.stage] > 1; 
+  if (study.launchPlan?.enabled) return { missingResources: false, missingPromotion: false };
+  const isPastApproval = STAGE_INDEXES[study.stage] > 1;
   return {
     missingResources: isPastApproval && !study.resourcesObtained,
     missingPromotion: isPastApproval && !study.websiteUpdated
@@ -102,8 +102,6 @@ const STAGES = [
 
 const OPTIONS = {
   STUDY_MATERIAL: ['Not Started', 'Requested from Team', 'Received from Team', 'Reviewed by Director', 'Approved / Team Notified'],
-  PHYSICAL_RESOURCES: ['Required', 'Quote request sent', 'Order placed', 'Received and distributed', 'Not required'],
-  DIGITAL_RESOURCES: ['Required', 'Procured and available', 'Not required'],
   LIVE_TRACKING: ['Not started', 'In Progress', 'Completed'],
   POST_REVIEW: ['Not Started', 'In Progress', 'Completed']
 };
@@ -133,11 +131,6 @@ const PRODUCTION_PATH_LABELS = {
   jonathan_self_service: 'Jonathan builds or corrects',
   other_owner: 'Another owner',
 };
-
-const OPTIONAL_LAUNCH_PROFILES = LAUNCH_PROFILE_IDS.filter((profile) => ![
-  'universal_core',
-  'planning_center_information_page',
-].includes(profile));
 
 const emptyStudyForm = (stage = 'planning') => ({
   title: '',
@@ -264,7 +257,7 @@ const App = () => {
   const updateStudyField = (field, value) => {
     setFormData((current) => {
       const next = { ...current, [field]: value };
-      if (current.launchPlan && ['startDate', 'weeks', 'physicalResources', 'digitalResources'].includes(field)) {
+      if (current.launchPlan && ['startDate', 'weeks'].includes(field)) {
         next.launchPlan = createLaunchPlan(next, current.launchPlan);
       }
       return next;
@@ -285,12 +278,20 @@ const App = () => {
     });
   };
 
-  const toggleLaunchProfile = (profile) => {
+  const updateResourceRequirement = (field, profile, required) => {
     setFormData((current) => {
-      const profiles = current.launchPlan.profiles.includes(profile)
-        ? current.launchPlan.profiles.filter((item) => item !== profile)
-        : [...current.launchPlan.profiles, profile];
-      return { ...current, launchPlan: createLaunchPlan(current, { ...current.launchPlan, profiles }) };
+      const next = {
+        ...current,
+        [field]: required
+          ? (current[field] === 'Not required' ? 'Required' : current[field])
+          : 'Not required',
+      };
+      if (!current.launchPlan) return next;
+      const profiles = required
+        ? [...new Set([...current.launchPlan.profiles, profile])]
+        : current.launchPlan.profiles.filter((item) => item !== profile);
+      next.launchPlan = createLaunchPlan(next, { ...current.launchPlan, profiles });
+      return next;
     });
   };
 
@@ -300,7 +301,11 @@ const App = () => {
       const checkpoints = current.launchPlan.checkpoints.map((checkpoint) => {
         if (checkpoint.id !== checkpointId) return checkpoint;
         const updated = { ...checkpoint, ...changes };
-        if (changes.status) updated.completedAt = changes.status === 'done' ? (checkpoint.completedAt || today) : '';
+        if (changes.status) {
+          updated.completedAt = ['done', 'not_required', 'accepted_risk'].includes(changes.status)
+            ? (checkpoint.completedAt || today)
+            : '';
+        }
         return updated;
       });
       const proof = checkpoints.find((checkpoint) => checkpoint.id === 'planning_center_independent_proof');
@@ -395,11 +400,12 @@ const App = () => {
                 })()}
                 {launchSummary.enabled && (
                   <div className="mt-2 flex flex-wrap items-center gap-1.5 pointer-events-none">
-                    <span className={`flex items-center gap-1 rounded border font-semibold ${compact ? 'text-[9px] px-1.5 py-0.5' : 'text-xs px-2.5 py-1'} ${launchSummary.blocked ? 'border-red-200 bg-red-50 text-red-700' : launchSummary.overdue ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-teal-200 bg-teal-50 text-teal-800'}`}>
+                    <span className={`flex items-center gap-1 rounded border font-semibold ${compact ? 'text-[9px] px-1.5 py-0.5' : 'text-xs px-2.5 py-1'} ${launchSummary.blocked ? 'border-red-200 bg-red-50 text-red-700' : (launchSummary.overdue || launchSummary.acceptedRisk) ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-teal-200 bg-teal-50 text-teal-800'}`}>
                       <ListChecks size={compact ? 11 : 14} /> Launch {launchSummary.readinessPercent}%
                     </span>
                     {launchSummary.blocked > 0 && <span className="text-[10px] font-semibold text-red-700">{launchSummary.blocked} blocked</span>}
                     {launchSummary.overdue > 0 && <span className="text-[10px] font-semibold text-amber-800">{launchSummary.overdue} overdue</span>}
+                    {launchSummary.acceptedRisk > 0 && <span className="text-[10px] font-semibold text-amber-800">{launchSummary.acceptedRisk} accepted risk</span>}
                   </div>
                 )}
               </div>
@@ -414,10 +420,16 @@ const App = () => {
                   Material: {study.studyMaterial}
                 </span>
               )}
-              {study.physicalResources !== 'Not required' && (
+              {!launchSummary.enabled && study.physicalResources !== 'Not required' && (
                 <span className={`font-bold rounded border ${getStatusColor(study.physicalResources)} ${compact ? 'text-[8px] px-1.5 py-0.5 mt-1' : 'text-[10px] lg:text-xs px-2.5 py-1'}`}>
                   Resources: {study.physicalResources}
                 </span>
+              )}
+              {launchSummary.enabled && study.launchPlan.profiles.includes('physical_resource') && (
+                <span className={`font-bold rounded border text-emerald-700 bg-emerald-50 border-emerald-200 ${compact ? 'text-[8px] px-1.5 py-0.5 mt-1' : 'text-[10px] lg:text-xs px-2.5 py-1'}`}>Physical resources</span>
+              )}
+              {launchSummary.enabled && study.launchPlan.profiles.includes('digital_streaming') && (
+                <span className={`font-bold rounded border text-blue-700 bg-blue-50 border-blue-200 ${compact ? 'text-[8px] px-1.5 py-0.5 mt-1' : 'text-[10px] lg:text-xs px-2.5 py-1'}`}>Digital material</span>
               )}
             </div>
 
@@ -488,10 +500,10 @@ const App = () => {
                       <div className="h-1.5 bg-slate-100 rounded overflow-hidden"><div className="h-full bg-teal-600" style={{ width: `${summary.readinessPercent}%` }} /></div>
                     </div>
                     <div className="text-xs font-semibold">
-                      {summary.blocked > 0 ? <span className="text-red-700">{summary.blocked} blocked</span> : summary.overdue > 0 ? <span className="text-amber-800">{summary.overdue} overdue</span> : <span className="text-teal-700">On track</span>}
+                      {summary.blocked > 0 ? <span className="text-red-700">{summary.blocked} blocked</span> : summary.overdue > 0 ? <span className="text-amber-800">{summary.overdue} overdue</span> : summary.acceptedRisk > 0 ? <span className="text-amber-800">Accepted risk</span> : summary.ready ? <span className="text-teal-700">Ready</span> : <span className="text-teal-700">On track</span>}
                     </div>
                     <div className="min-w-0">
-                      {summary.nextCheckpoint ? <><div className="text-sm font-medium text-slate-800 truncate">{summary.nextCheckpoint.title}</div><div className="text-xs text-slate-500 mt-1">Due {nextDue || 'date not set'} · {LAUNCH_STATUS_LABELS[summary.nextCheckpoint.status]}</div></> : <span className="text-sm text-teal-700 font-medium">Launch checklist complete</span>}
+                      {summary.nextCheckpoint ? <><div className="text-sm font-medium text-slate-800 truncate">{summary.nextCheckpoint.title}</div><div className="text-xs text-slate-500 mt-1">Due {nextDue || 'date not set'} · {LAUNCH_STATUS_LABELS[summary.nextCheckpoint.status]}</div></> : <span className={`text-sm font-medium ${summary.acceptedRisk ? 'text-amber-800' : 'text-teal-700'}`}>{summary.acceptedRisk ? 'Ready with accepted risk' : 'Ready'}</span>}
                     </div>
                   </>
                 ) : (
@@ -1678,42 +1690,32 @@ const App = () => {
               <div className="space-y-6 pt-6 border-t border-slate-100">
                 <div className="flex items-center gap-2 text-emerald-600">
                   <Package size={18} strokeWidth={3} />
-                  <h3 className="text-xs font-black uppercase tracking-[0.2em]">Resources & Tracking</h3>
+                  <h3 className="text-xs font-black uppercase tracking-[0.2em]">Study Setup</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="md:col-span-2 flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4">
-                    <input 
-                      type="checkbox" 
-                      id="resourcesObtained"
-                      className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" 
-                      checked={formData.resourcesObtained} 
-                      onChange={e => setFormData({...formData, resourcesObtained: e.target.checked})} 
-                    />
-                    <label htmlFor="resourcesObtained" className="text-sm font-bold text-slate-700 cursor-pointer">Resources obtained and available?</label>
-                  </div>
                   <div>
                     <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Study Material Status</label>
                     <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-emerald-100 outline-none transition-all" value={formData.studyMaterial} onChange={e => setFormData({...formData, studyMaterial: e.target.value})}>
                       {OPTIONS.STUDY_MATERIAL.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Physical Resources</label>
-                    <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-emerald-100 outline-none transition-all" value={formData.physicalResources} onChange={e => updateStudyField('physicalResources', e.target.value)}>
-                      {OPTIONS.PHYSICAL_RESOURCES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Digital Resources</label>
-                    <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-emerald-100 outline-none transition-all" value={formData.digitalResources} onChange={e => updateStudyField('digitalResources', e.target.value)}>
-                      {OPTIONS.DIGITAL_RESOURCES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
-                  </div>
+                  <label className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 cursor-pointer">
+                    <input type="checkbox" checked={formData.physicalResources !== 'Not required'} onChange={(e) => updateResourceRequirement('physicalResources', 'physical_resource', e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                    <span className="text-sm font-semibold text-slate-700">Physical books or workbooks required</span>
+                  </label>
+                  <label className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 cursor-pointer">
+                    <input type="checkbox" checked={formData.digitalResources !== 'Not required'} onChange={(e) => updateResourceRequirement('digitalResources', 'digital_streaming', e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                    <span className="text-sm font-semibold text-slate-700">Digital or streamed material required</span>
+                  </label>
                   <div>
                     <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Location</label>
                     <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-emerald-100 outline-none transition-all" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})}>
                       {LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
                     </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Study Notes</label>
+                    <textarea rows={3} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all focus:bg-white" placeholder="Record study-specific context or unresolved facts." value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} />
                   </div>
                 </div>
               </div>
@@ -1741,7 +1743,7 @@ const App = () => {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-xs font-semibold text-slate-500 mb-1.5">Planning Center page mode</label>
                         <select value={formData.launchPlan.pageMode} onChange={(e) => updateLaunchPlan({ pageMode: e.target.value })} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-teal-500 outline-none">
@@ -1758,23 +1760,7 @@ const App = () => {
                         <label className="block text-xs font-semibold text-slate-500 mb-1.5">Public launch date</label>
                         <input type="date" value={formData.launchPlan.publicLaunchDate} onChange={(e) => updateLaunchPlan({ publicLaunchDate: e.target.value })} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-teal-500 outline-none" />
                       </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Kickoff date, if different</label>
-                        <input type="date" value={formData.launchPlan.kickoffDate} onChange={(e) => updateLaunchPlan({ kickoffDate: e.target.value })} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-teal-500 outline-none" />
-                      </div>
                     </div>
-
-                    <fieldset>
-                      <legend className="text-xs font-semibold text-slate-500 mb-2">Apply the workflow sections this study needs</legend>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {OPTIONAL_LAUNCH_PROFILES.map((profile) => (
-                          <label key={profile} className="flex items-center gap-3 px-3 py-2.5 border border-slate-200 rounded-md text-sm text-slate-700 cursor-pointer hover:bg-slate-50">
-                            <input type="checkbox" checked={formData.launchPlan.profiles.includes(profile)} onChange={() => toggleLaunchProfile(profile)} className="w-4 h-4 rounded border-slate-300 text-teal-700 focus:ring-teal-600" />
-                            {LAUNCH_PROFILE_LABELS[profile]}
-                          </label>
-                        ))}
-                      </div>
-                    </fieldset>
 
                     {formData.launchPlan.productionPath === 'jonathan_self_service' && (
                       <div className="flex items-start gap-3 px-4 py-3 border border-amber-200 bg-amber-50 rounded-md">
@@ -1785,19 +1771,26 @@ const App = () => {
 
                     <div className="border border-slate-200 rounded-lg overflow-hidden">
                       <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-                        <span className="text-sm font-semibold text-slate-800">Checkpoints</span>
-                        <span className="text-xs text-slate-500">{getLaunchSummary(formData).complete}/{getLaunchSummary(formData).total} complete</span>
+                        <span className="text-sm font-semibold text-slate-800">Launch checkpoints</span>
+                        <span className="text-xs text-slate-500">{getLaunchSummary(formData).complete}/{getLaunchSummary(formData).total} ready</span>
                       </div>
-                      {formData.launchPlan.checkpoints.map((checkpoint) => (
-                        <div key={checkpoint.id} className="p-4 border-b border-slate-100 last:border-b-0 space-y-3">
+                      {formData.launchPlan.checkpoints.map((checkpoint, index, checkpoints) => (
+                        <React.Fragment key={checkpoint.id}>
+                          {checkpoint.phase === 'follow_up' && checkpoints[index - 1]?.phase !== 'follow_up' && (
+                            <div className="px-4 py-3 bg-slate-50 border-y border-slate-200 text-sm font-semibold text-slate-800">After-launch follow-up</div>
+                          )}
+                        <div className="p-4 border-b border-slate-100 last:border-b-0 space-y-3">
                           <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
                             <div className="min-w-0">
                               <div className="font-semibold text-slate-900">{checkpoint.title}</div>
                               <p className="text-xs text-slate-500 mt-1 leading-relaxed">{checkpoint.description}</p>
+                              {getUnmetDependencies(formData.launchPlan, checkpoint).length > 0 && (
+                                <p className="text-xs font-semibold text-amber-800 mt-1">{getUnmetDependencies(formData.launchPlan, checkpoint).length} prerequisite{getUnmetDependencies(formData.launchPlan, checkpoint).length === 1 ? '' : 's'} remaining</p>
+                              )}
                             </div>
                             <div className="grid grid-cols-2 gap-2 flex-shrink-0">
                               <select aria-label={`${checkpoint.title} status`} value={checkpoint.status} onChange={(e) => updateCheckpoint(checkpoint.id, { status: e.target.value })} className="border border-slate-300 rounded-md px-2.5 py-2 text-xs font-semibold bg-white focus:ring-2 focus:ring-teal-500 outline-none">
-                                {LAUNCH_STATUSES.map((status) => <option key={status} value={status}>{LAUNCH_STATUS_LABELS[status]}</option>)}
+                                {LAUNCH_STATUSES.map((status) => <option key={status} value={status} disabled={status === 'done' && getUnmetDependencies(formData.launchPlan, checkpoint).length > 0}>{LAUNCH_STATUS_LABELS[status]}</option>)}
                               </select>
                               <input aria-label={`${checkpoint.title} due date`} title={`Calculated: ${checkpoint.calculatedDueDate || 'not set'}`} type="date" value={checkpoint.dueDateOverride || checkpoint.calculatedDueDate} onChange={(e) => updateCheckpoint(checkpoint.id, { dueDateOverride: e.target.value === checkpoint.calculatedDueDate ? '' : e.target.value })} className="border border-slate-300 rounded-md px-2.5 py-2 text-xs font-semibold bg-white focus:ring-2 focus:ring-teal-500 outline-none" />
                             </div>
@@ -1814,54 +1807,13 @@ const App = () => {
                             <textarea rows={2} aria-label={`${checkpoint.title} evidence`} value={checkpoint.evidence} onChange={(e) => updateCheckpoint(checkpoint.id, { evidence: e.target.value })} className="mt-2 w-full border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-teal-500 outline-none" placeholder="Record the URL, confirmation, or note that proves this is complete." />
                           </details>
                         </div>
+                        </React.Fragment>
                       ))}
                     </div>
 
                     <button type="button" onClick={() => setFormData((current) => ({ ...current, launchPlan: null }))} className="text-xs font-semibold text-slate-500 hover:text-red-700">Remove launch checklist</button>
                   </div>
                 )}
-              </div>
-
-              <div className="space-y-6 pt-6 border-t border-slate-100">
-                <div className="flex items-center gap-2 text-purple-600">
-                  <Megaphone size={18} strokeWidth={3} />
-                  <h3 className="text-xs font-black uppercase tracking-[0.2em]">Promotion & Post-Study</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4">
-                    <input 
-                      type="checkbox" 
-                      id="websiteUpdated"
-                      className="w-5 h-5 rounded border-slate-300 text-purple-600 focus:ring-purple-500" 
-                      checked={formData.websiteUpdated} 
-                      onChange={e => setFormData({...formData, websiteUpdated: e.target.checked})} 
-                    />
-                    <label htmlFor="websiteUpdated" className="text-sm font-bold text-slate-700 cursor-pointer">Website Updated / Study Promoted?</label>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Live Study Tracking</label>
-                    <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-purple-100 outline-none transition-all" value={formData.liveTracking} onChange={e => setFormData({...formData, liveTracking: e.target.value})}>
-                      {OPTIONS.LIVE_TRACKING.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Proposed Promo Text</label>
-                    <div className="relative">
-                      <FileText className="absolute left-5 top-5 text-slate-400" size={18} />
-                      <textarea rows={3} className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-14 pr-5 py-4 text-base focus:ring-4 focus:ring-purple-100 outline-none transition-all focus:bg-white" placeholder="Enter blurb..." value={formData.promoText} onChange={e => setFormData({...formData, promoText: e.target.value})} />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Post-Study Review Status</label>
-                    <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-purple-100 outline-none transition-all" value={formData.postReview} onChange={e => setFormData({...formData, postReview: e.target.value})}>
-                      {OPTIONS.POST_REVIEW.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
-                  </div>
-                   <div>
-                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Quick Logistics Notes</label>
-                    <input className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-purple-100 outline-none transition-all" placeholder="Any final thoughts?" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} />
-                  </div>
-                </div>
               </div>
 
               <div className="flex flex-wrap gap-2 md:gap-4 pt-10 justify-end border-t border-slate-100 pb-2">

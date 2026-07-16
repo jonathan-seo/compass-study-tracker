@@ -17,9 +17,10 @@ const orangevilleMonday = {
   digitalResources: 'Required',
 };
 
-test('creates a backward-compatible launch plan with inferred resource profiles', () => {
+test('creates the streamlined study launch plan with inferred resource profiles', () => {
   const launchPlan = createLaunchPlan(orangevilleMonday);
 
+  assert.equal(launchPlan.version, 2);
   assert.equal(launchPlan.pageMode, 'information_only');
   assert.equal(launchPlan.productionPath, 'admin_handoff');
   assert.equal(launchPlan.publicLaunchDate, '2026-08-10');
@@ -32,6 +33,13 @@ test('creates a backward-compatible launch plan with inferred resource profiles'
   assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'physical_resource_received'), true);
   assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'digital_access_tested'), true);
   assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'planning_center_independent_proof'), false);
+  assert.equal('kickoffDate' in launchPlan, false);
+  assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'final_readiness_complete'), false);
+  assert.deepEqual(
+    ['planning_center_copy_ready', 'compass_news_copy_ready', 'social_media_copy_ready', 'sunday_slide_brief_ready', 'leader_email_copy_ready']
+      .filter((id) => launchPlan.checkpoints.some((checkpoint) => checkpoint.id === id)),
+    ['planning_center_copy_ready', 'compass_news_copy_ready', 'social_media_copy_ready', 'sunday_slide_brief_ready', 'leader_email_copy_ready'],
+  );
 });
 
 test('adds the independent-proof checkpoint only for Jonathan self-service', () => {
@@ -82,6 +90,22 @@ test('summarizes overdue, blocked, and completion state', () => {
   assert.equal(summary.nextCheckpoint.id, 'master_brief_ready');
 });
 
+test('calculates readiness without post-launch follow-up or a manual final checkbox', () => {
+  const launchPlan = createLaunchPlan(orangevilleMonday);
+  launchPlan.checkpoints.forEach((checkpoint) => {
+    checkpoint.status = checkpoint.affectsReadiness === false ? 'blocked' : 'done';
+  });
+  const acceptedRisk = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'venue_host_av_ready');
+  acceptedRisk.status = 'accepted_risk';
+
+  const summary = getLaunchSummary({ ...orangevilleMonday, launchPlan }, '2026-09-20');
+
+  assert.equal(summary.ready, true);
+  assert.equal(summary.readinessPercent, 100);
+  assert.equal(summary.acceptedRisk, 1);
+  assert.equal(summary.blocked, 0);
+});
+
 test('sanitizes nested launch data and rejects invalid checkpoint status', () => {
   const launchPlan = createLaunchPlan(orangevilleMonday);
   launchPlan.checkpoints[0].status = 'mystery';
@@ -90,4 +114,14 @@ test('sanitizes nested launch data and rejects invalid checkpoint status', () =>
 
   assert.equal(result.errors.some((error) => error.includes('Invalid launchPlan.checkpoints[0].status')), true);
   assert.equal(result.launchPlan.checkpoints[0].status, 'not_started');
+});
+
+test('prevents promotion submission from completing before all five standard outputs', () => {
+  const launchPlan = createLaunchPlan(orangevilleMonday);
+  const promotion = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'promotion_submitted');
+  promotion.status = 'done';
+
+  const result = sanitizeLaunchPlan(launchPlan);
+
+  assert.equal(result.errors.some((error) => error.includes('promotion_submitted cannot be done before')), true);
 });

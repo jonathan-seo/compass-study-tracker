@@ -93,30 +93,33 @@ export function getActionSignals(study) {
   const signals = [];
   const stageIndex = STAGES.indexOf(study.stage);
   const sourcingOrLater = stageIndex >= STAGES.indexOf('sourcing');
+  const hasLaunchPlan = study.launchPlan?.enabled === true;
 
   if (study.studyMaterial !== 'Approved / Team Notified' && stageIndex >= STAGES.indexOf('approval')) {
     signals.push({ code: 'material-review', label: 'Study material still needs approval or team notification' });
   }
 
-  const physicalOutstanding = !['Not required', 'Received and distributed'].includes(study.physicalResources);
-  if (sourcingOrLater && physicalOutstanding && !study.resourcesObtained) {
-    signals.push({ code: 'physical-resources', label: `Physical resources: ${study.physicalResources || 'Required'}` });
-  }
+  if (!hasLaunchPlan) {
+    const physicalOutstanding = !['Not required', 'Received and distributed'].includes(study.physicalResources);
+    if (sourcingOrLater && physicalOutstanding && !study.resourcesObtained) {
+      signals.push({ code: 'physical-resources', label: `Physical resources: ${study.physicalResources || 'Required'}` });
+    }
 
-  if (sourcingOrLater && study.digitalResources === 'Required') {
-    signals.push({ code: 'digital-resources', label: 'Digital resources still required' });
-  }
+    if (sourcingOrLater && study.digitalResources === 'Required') {
+      signals.push({ code: 'digital-resources', label: 'Digital resources still required' });
+    }
 
-  if (sourcingOrLater && !study.websiteUpdated) {
-    signals.push({ code: 'promotion', label: 'Website or promotion not complete' });
-  }
+    if (sourcingOrLater && !study.websiteUpdated) {
+      signals.push({ code: 'promotion', label: 'Website or promotion not complete' });
+    }
 
-  if (study.stage === 'active' && study.liveTracking === 'Not started') {
-    signals.push({ code: 'live-tracking', label: 'Live-study tracking has not started' });
-  }
+    if (study.stage === 'active' && study.liveTracking === 'Not started') {
+      signals.push({ code: 'live-tracking', label: 'Live-study tracking has not started' });
+    }
 
-  if (study.stage === 'review' && study.postReview !== 'Completed') {
-    signals.push({ code: 'post-review', label: `Post-study review: ${study.postReview || 'Not Started'}` });
+    if (study.stage === 'review' && study.postReview !== 'Completed') {
+      signals.push({ code: 'post-review', label: `Post-study review: ${study.postReview || 'Not Started'}` });
+    }
   }
 
   const launchSummary = getLaunchSummary(study);

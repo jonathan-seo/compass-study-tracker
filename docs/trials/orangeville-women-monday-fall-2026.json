@@ -15,19 +15,17 @@
     "postReview": "Not Started",
     "notes": "Fall block runs through 2026-11-16 with a Thanksgiving break.",
     "launchPlan": {
-      "version": 1,
+      "version": 2,
       "enabled": true,
       "profiles": [
         "universal_core",
         "planning_center_information_page",
         "physical_resource",
-        "digital_streaming",
-        "sunday_services_promotion"
+        "digital_streaming"
       ],
       "pageMode": "information_only",
       "productionPath": "admin_handoff",
       "publicLaunchDate": "2026-08-10",
-      "kickoffDate": "",
       "studyEndDate": "2026-11-16",
       "independentProofObtained": false,
       "checkpoints": [
@@ -49,6 +47,31 @@
           "nextAction": "Build and publish the information-only Planning Center page from the approved brief."
         },
         {
+          "id": "planning_center_copy_ready",
+          "status": "not_started",
+          "nextAction": "Prepare the Planning Center information-page copy from the approved master brief."
+        },
+        {
+          "id": "compass_news_copy_ready",
+          "status": "not_started",
+          "nextAction": "Prepare the Compass News version from the approved master brief."
+        },
+        {
+          "id": "social_media_copy_ready",
+          "status": "not_started",
+          "nextAction": "Prepare the social-media version from the approved master brief."
+        },
+        {
+          "id": "sunday_slide_brief_ready",
+          "status": "not_started",
+          "nextAction": "Prepare the standard Sunday-slide brief."
+        },
+        {
+          "id": "leader_email_copy_ready",
+          "status": "not_started",
+          "nextAction": "Prepare the leader-email version from the approved master brief."
+        },
+        {
           "id": "physical_resource_ordered",
           "status": "done",
           "completedAt": "2026-07-16",
@@ -67,12 +90,12 @@
         {
           "id": "promotion_submitted",
           "status": "not_started",
-          "nextAction": "Confirm website/app, Compass News, and applicable promotion owners and dates."
+          "nextAction": "Submit the completed five-output communication package through the current owner routes."
         },
         {
-          "id": "sunday_services_verified",
+          "id": "promotion_outputs_verified",
           "status": "not_started",
-          "nextAction": "Confirm whether slides, pre-roll, or spoken announcements apply."
+          "nextAction": "Verify Planning Center, Compass News, social media, Sunday slides, and leader email are live or scheduled accurately."
         },
         {
           "id": "leader_communication_confirmed",
@@ -83,11 +106,6 @@
           "id": "venue_host_av_ready",
           "status": "waiting_on_owner",
           "nextAction": "Confirm room, access, setup, AV, accessibility, and cancellation route."
-        },
-        {
-          "id": "final_readiness_complete",
-          "status": "not_started",
-          "nextAction": "Schedule the final readiness review before launch."
         },
         {
           "id": "week_one_check_in",

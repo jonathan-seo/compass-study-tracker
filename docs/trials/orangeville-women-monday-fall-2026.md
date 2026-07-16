@@ -10,14 +10,14 @@ This is the first bounded launch-readiness trial. It uses the reconciled facts f
 - Planning Center mode: information only
 - Page production: Director of Admin handoff, currently Sarah Dynes
 - Public launch target: 2026-08-10
-- Profiles: universal core, Planning Center information page, physical resources, digital streaming, and Sunday services promotion
+- Applicability: universal study launch, Planning Center information page, physical resources, and digital streaming
 
 ## Seeded evidence and work
 
 - Public facts are confirmed.
 - Forty copies have been ordered from Ekkuip at $23.25 each with free shipping.
 - The master communication brief is in progress.
-- Book delivery, the information page, promotion channels, actual-account digital testing, venue/AV, leader communication, final readiness, week-one follow-up, and launch lessons remain visible work.
+- Book delivery, the information page, all five standard communication outputs, promotion submission and verification, actual-account digital testing, venue/AV, leader communication, week-one follow-up, and launch lessons remain visible work. Readiness is calculated from the pre-launch checkpoints.
 
 ## Safe use
 

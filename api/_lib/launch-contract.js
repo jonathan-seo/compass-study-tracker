@@ -1,4 +1,4 @@
-export const LAUNCH_PLAN_VERSION = 1;
+export const LAUNCH_PLAN_VERSION = 2;
 
 export const LAUNCH_STATUSES = [
   'not_started',
@@ -15,9 +15,6 @@ export const LAUNCH_PROFILE_IDS = [
   'planning_center_information_page',
   'physical_resource',
   'digital_streaming',
-  'offsite_or_home_hosted',
-  'sunday_services_promotion',
-  'kickoff_before_study',
 ];
 
 export const PLANNING_CENTER_PAGE_MODES = [
@@ -39,9 +36,6 @@ export const LAUNCH_PROFILE_LABELS = {
   planning_center_information_page: 'Planning Center information page',
   physical_resource: 'Physical books or workbooks',
   digital_streaming: 'Digital or streamed material',
-  offsite_or_home_hosted: 'Offsite or home-hosted',
-  sunday_services_promotion: 'Sunday services promotion',
-  kickoff_before_study: 'Kickoff before first study session',
 };
 
 export const LAUNCH_CHECKPOINT_TEMPLATES = [
@@ -64,13 +58,54 @@ export const LAUNCH_CHECKPOINT_TEMPLATES = [
     owner: 'Jonathan',
   },
   {
-    id: 'planning_center_page_live',
-    title: 'Planning Center information page live',
-    description: 'The public information page is published, accurate, link-tested, and verified.',
+    id: 'planning_center_copy_ready',
+    title: 'Planning Center copy prepared',
+    description: 'The information-page version has been derived from the approved master brief.',
     profile: 'planning_center_information_page',
-    anchor: 'public_launch_date',
-    offsetDays: 0,
-    owner: 'Director of Admin',
+    anchor: 'first_study_session_date',
+    offsetDays: -42,
+    owner: 'Jonathan',
+    dependsOn: ['master_brief_ready'],
+  },
+  {
+    id: 'compass_news_copy_ready',
+    title: 'Compass News copy prepared',
+    description: 'The Compass News version has been derived from the approved master brief.',
+    profile: 'universal_core',
+    anchor: 'first_study_session_date',
+    offsetDays: -42,
+    owner: 'Jonathan',
+    dependsOn: ['master_brief_ready'],
+  },
+  {
+    id: 'social_media_copy_ready',
+    title: 'Social-media copy prepared',
+    description: 'The social-media version has been derived from the approved master brief.',
+    profile: 'universal_core',
+    anchor: 'first_study_session_date',
+    offsetDays: -42,
+    owner: 'Jonathan',
+    dependsOn: ['master_brief_ready'],
+  },
+  {
+    id: 'sunday_slide_brief_ready',
+    title: 'Sunday-slide brief prepared',
+    description: 'The standard Sunday-slide wording, dates, call to action, and destination are ready.',
+    profile: 'universal_core',
+    anchor: 'first_study_session_date',
+    offsetDays: -42,
+    owner: 'Jonathan',
+    dependsOn: ['master_brief_ready'],
+  },
+  {
+    id: 'leader_email_copy_ready',
+    title: 'Leader-email copy prepared',
+    description: 'The leader-email version has been derived from the approved master brief.',
+    profile: 'universal_core',
+    anchor: 'first_study_session_date',
+    offsetDays: -42,
+    owner: 'Jonathan',
+    dependsOn: ['master_brief_ready'],
   },
   {
     id: 'planning_center_independent_proof',
@@ -81,6 +116,17 @@ export const LAUNCH_CHECKPOINT_TEMPLATES = [
     offsetDays: -1,
     owner: 'Jonathan',
     condition: 'jonathan_self_service',
+    dependsOn: ['planning_center_copy_ready'],
+  },
+  {
+    id: 'planning_center_page_live',
+    title: 'Planning Center information page live',
+    description: 'The public information page is published, accurate, link-tested, and verified.',
+    profile: 'planning_center_information_page',
+    anchor: 'public_launch_date',
+    offsetDays: 0,
+    owner: 'Director of Admin',
+    dependsOn: ['planning_center_copy_ready'],
   },
   {
     id: 'physical_resource_ordered',
@@ -99,6 +145,7 @@ export const LAUNCH_CHECKPOINT_TEMPLATES = [
     anchor: 'first_study_session_date',
     offsetDays: -14,
     owner: 'Jonathan',
+    dependsOn: ['physical_resource_ordered'],
   },
   {
     id: 'digital_access_tested',
@@ -117,15 +164,23 @@ export const LAUNCH_CHECKPOINT_TEMPLATES = [
     anchor: 'first_study_session_date',
     offsetDays: -35,
     owner: 'Jonathan',
+    dependsOn: [
+      'planning_center_copy_ready',
+      'compass_news_copy_ready',
+      'social_media_copy_ready',
+      'sunday_slide_brief_ready',
+      'leader_email_copy_ready',
+    ],
   },
   {
-    id: 'sunday_services_verified',
-    title: 'Sunday services elements verified',
-    description: 'Requested slides, pre-roll, announcements, or spoken cues are scheduled and accurate.',
-    profile: 'sunday_services_promotion',
+    id: 'promotion_outputs_verified',
+    title: 'Promotion outputs verified',
+    description: 'Planning Center, Compass News, social media, Sunday slides, and leader email are live, scheduled, or confirmed accurately.',
+    profile: 'universal_core',
     anchor: 'first_study_session_date',
     offsetDays: -14,
     owner: 'Jonathan',
+    dependsOn: ['planning_center_page_live', 'promotion_submitted'],
   },
   {
     id: 'leader_communication_confirmed',
@@ -135,41 +190,15 @@ export const LAUNCH_CHECKPOINT_TEMPLATES = [
     anchor: 'first_study_session_date',
     offsetDays: -14,
     owner: 'Jonathan',
+    dependsOn: ['leader_email_copy_ready'],
   },
   {
     id: 'venue_host_av_ready',
     title: 'Venue, host, and AV ready',
     description: 'Access, setup, accessibility, hospitality, AV, signage, and cancellation route are confirmed.',
     profile: 'universal_core',
-    anchor: 'kickoff_or_first_session_date',
+    anchor: 'first_study_session_date',
     offsetDays: -7,
-    owner: 'Jonathan',
-  },
-  {
-    id: 'offsite_privacy_ready',
-    title: 'Offsite privacy and access ready',
-    description: 'Private address handling, parking, accessibility, weather route, and local contact are confirmed.',
-    profile: 'offsite_or_home_hosted',
-    anchor: 'kickoff_or_first_session_date',
-    offsetDays: -7,
-    owner: 'Jonathan',
-  },
-  {
-    id: 'kickoff_ready',
-    title: 'Kickoff event ready',
-    description: 'Kickoff-specific hospitality, communication, room, leader, and participant details are complete.',
-    profile: 'kickoff_before_study',
-    anchor: 'kickoff_date',
-    offsetDays: -2,
-    owner: 'Jonathan',
-  },
-  {
-    id: 'final_readiness_complete',
-    title: 'Final readiness review complete',
-    description: 'Every required checkpoint is done, not required, or has an explicitly accepted risk.',
-    profile: 'universal_core',
-    anchor: 'kickoff_or_first_session_date',
-    offsetDays: -2,
     owner: 'Jonathan',
   },
   {
@@ -180,6 +209,8 @@ export const LAUNCH_CHECKPOINT_TEMPLATES = [
     anchor: 'first_study_session_date',
     offsetDays: 10,
     owner: 'Jonathan',
+    phase: 'follow_up',
+    affectsReadiness: false,
   },
   {
     id: 'launch_lessons_captured',
@@ -189,11 +220,20 @@ export const LAUNCH_CHECKPOINT_TEMPLATES = [
     anchor: 'study_end_date',
     offsetDays: 0,
     owner: 'Jonathan',
+    phase: 'follow_up',
+    affectsReadiness: false,
   },
 ];
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const COMPLETE_STATUSES = new Set(['done', 'not_required']);
+const COMPLETE_STATUSES = new Set(['done', 'not_required', 'accepted_risk']);
+const FOLLOW_UP_CHECKPOINT_IDS = new Set(['week_one_check_in', 'launch_lessons_captured']);
+const OBSOLETE_CHECKPOINT_IDS = new Set([
+  'final_readiness_complete',
+  'kickoff_ready',
+  'offsite_privacy_ready',
+  'sunday_services_verified',
+]);
 
 function unique(values) {
   return [...new Set(values)];
@@ -231,8 +271,6 @@ function studyEndDate(study, plan) {
 
 function resolveAnchor(study, plan, anchor) {
   if (anchor === 'public_launch_date') return plan.publicLaunchDate || addDays(study.startDate, -42);
-  if (anchor === 'kickoff_date') return plan.kickoffDate || study.startDate;
-  if (anchor === 'kickoff_or_first_session_date') return plan.kickoffDate || study.startDate;
   if (anchor === 'study_end_date') return studyEndDate(study, plan);
   return study.startDate;
 }
@@ -265,22 +303,29 @@ export function createLaunchPlan(study, existingPlan = {}) {
     pageMode,
     productionPath,
     publicLaunchDate: existingPlan.publicLaunchDate || addDays(study.startDate, -42),
-    kickoffDate: existingPlan.kickoffDate || '',
     studyEndDate: existingPlan.studyEndDate || studyEndDate(study, existingPlan),
     independentProofObtained: Boolean(existingPlan.independentProofObtained),
     checkpoints: [],
   };
 
   const existingById = new Map((existingPlan.checkpoints || []).map((checkpoint) => [checkpoint.id, checkpoint]));
-  plan.checkpoints = LAUNCH_CHECKPOINT_TEMPLATES
-    .filter((template) => templateApplies(template, profiles, productionPath))
-    .map((template) => {
+  const applicableTemplates = LAUNCH_CHECKPOINT_TEMPLATES
+    .filter((template) => templateApplies(template, profiles, productionPath));
+  const applicableIds = new Set(applicableTemplates.map((template) => template.id));
+  plan.checkpoints = applicableTemplates.map((template) => {
       const previous = existingById.get(template.id) || {};
       const calculatedDueDate = addDays(resolveAnchor(study, plan, template.anchor), template.offsetDays);
+      const dependsOn = [...(template.dependsOn || [])];
+      if (template.id === 'planning_center_page_live' && productionPath === 'jonathan_self_service') {
+        dependsOn.push('planning_center_independent_proof');
+      }
       return {
         id: template.id,
         title: template.title,
         description: template.description,
+        phase: template.phase || 'pre_launch',
+        affectsReadiness: template.affectsReadiness !== false,
+        dependsOn: unique(dependsOn).filter((id) => applicableIds.has(id)),
         owner: previous.owner || template.owner,
         status: LAUNCH_STATUSES.includes(previous.status) ? previous.status : 'not_started',
         calculatedDueDate,
@@ -299,6 +344,12 @@ export function effectiveDueDate(checkpoint) {
   return checkpoint.dueDateOverride || checkpoint.calculatedDueDate || '';
 }
 
+export function getUnmetDependencies(plan, checkpoint) {
+  if (!checkpoint?.dependsOn?.length) return [];
+  const byId = new Map((plan?.checkpoints || []).map((item) => [item.id, item]));
+  return checkpoint.dependsOn.filter((id) => !COMPLETE_STATUSES.has(byId.get(id)?.status));
+}
+
 export function getLaunchSummary(study, today = new Date().toISOString().slice(0, 10)) {
   if (!study.launchPlan?.enabled) {
     return {
@@ -306,6 +357,8 @@ export function getLaunchSummary(study, today = new Date().toISOString().slice(0
       total: 0,
       complete: 0,
       readinessPercent: 0,
+      ready: false,
+      acceptedRisk: 0,
       blocked: 0,
       overdue: 0,
       dueSoon: 0,
@@ -313,7 +366,11 @@ export function getLaunchSummary(study, today = new Date().toISOString().slice(0
     };
   }
 
-  const checkpoints = study.launchPlan.checkpoints || [];
+  const checkpoints = (study.launchPlan.checkpoints || []).filter((checkpoint) => (
+    checkpoint.affectsReadiness !== false
+    && !FOLLOW_UP_CHECKPOINT_IDS.has(checkpoint.id)
+    && !OBSOLETE_CHECKPOINT_IDS.has(checkpoint.id)
+  ));
   const incomplete = checkpoints.filter((checkpoint) => !COMPLETE_STATUSES.has(checkpoint.status));
   const blocked = incomplete.filter((checkpoint) => checkpoint.status === 'blocked');
   const overdue = incomplete.filter((checkpoint) => {
@@ -332,12 +389,15 @@ export function getLaunchSummary(study, today = new Date().toISOString().slice(0
     return effectiveDueDate(left).localeCompare(effectiveDueDate(right));
   });
   const complete = checkpoints.length - incomplete.length;
+  const acceptedRisk = checkpoints.filter((checkpoint) => checkpoint.status === 'accepted_risk').length;
 
   return {
     enabled: true,
     total: checkpoints.length,
     complete,
     readinessPercent: checkpoints.length ? Math.round((complete / checkpoints.length) * 100) : 0,
+    ready: checkpoints.length > 0 && incomplete.length === 0,
+    acceptedRisk,
     blocked: blocked.length,
     overdue: overdue.length,
     dueSoon: dueSoon.length,
@@ -393,10 +453,14 @@ export function sanitizeLaunchPlan(input) {
     if (seenIds.has(id)) errors.push(`${prefix}.id must be unique.`);
     seenIds.add(id);
     if (!LAUNCH_STATUSES.includes(checkpoint.status)) errors.push(`Invalid ${prefix}.status: ${checkpoint.status}`);
+    const template = LAUNCH_CHECKPOINT_TEMPLATES.find((candidate) => candidate.id === id);
     return {
       id,
       title: cleanText(checkpoint.title || '', 160, `${prefix}.title`, errors),
       description: cleanText(checkpoint.description || '', 600, `${prefix}.description`, errors),
+      phase: template?.phase || (checkpoint.phase === 'follow_up' ? 'follow_up' : 'pre_launch'),
+      affectsReadiness: template ? template.affectsReadiness !== false : checkpoint.affectsReadiness !== false,
+      dependsOn: template?.dependsOn ? [...template.dependsOn] : [],
       owner: cleanText(checkpoint.owner || '', 120, `${prefix}.owner`, errors),
       status: LAUNCH_STATUSES.includes(checkpoint.status) ? checkpoint.status : 'not_started',
       calculatedDueDate: cleanOptionalDate(checkpoint.calculatedDueDate, `${prefix}.calculatedDueDate`, errors),
@@ -415,16 +479,32 @@ export function sanitizeLaunchPlan(input) {
     pageMode: pageMode || 'information_only',
     productionPath: productionPath || 'admin_handoff',
     publicLaunchDate: cleanOptionalDate(input.publicLaunchDate, 'launchPlan.publicLaunchDate', errors),
-    kickoffDate: cleanOptionalDate(input.kickoffDate, 'launchPlan.kickoffDate', errors),
     studyEndDate: cleanOptionalDate(input.studyEndDate, 'launchPlan.studyEndDate', errors),
     independentProofObtained: Boolean(input.independentProofObtained),
     checkpoints,
   };
 
+  const checkpointIds = new Set(checkpoints.map((checkpoint) => checkpoint.id));
+  checkpoints.forEach((checkpoint) => {
+    checkpoint.dependsOn = checkpoint.dependsOn.filter((id) => checkpointIds.has(id));
+  });
+
   if (launchPlan.productionPath === 'jonathan_self_service' && !launchPlan.independentProofObtained) {
+    const pageCheckpoint = checkpoints.find((checkpoint) => checkpoint.id === 'planning_center_page_live');
+    if (pageCheckpoint && checkpointIds.has('planning_center_independent_proof')) {
+      pageCheckpoint.dependsOn = unique([...pageCheckpoint.dependsOn, 'planning_center_independent_proof']);
+    }
     const proofCheckpoint = checkpoints.find((checkpoint) => checkpoint.id === 'planning_center_independent_proof');
     if (proofCheckpoint?.status === 'done') launchPlan.independentProofObtained = true;
   }
+
+  checkpoints.forEach((checkpoint) => {
+    if (checkpoint.status !== 'done') return;
+    const unmet = getUnmetDependencies(launchPlan, checkpoint);
+    if (unmet.length > 0) {
+      errors.push(`launchPlan checkpoint ${checkpoint.id} cannot be done before: ${unmet.join(', ')}.`);
+    }
+  });
 
   return { launchPlan, errors: [...new Set(errors)] };
 }

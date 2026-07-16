@@ -77,7 +77,6 @@ test('accepts a validated launch plan as a writable nested field', () => {
       pageMode: 'information_only',
       productionPath: 'admin_handoff',
       publicLaunchDate: '2026-08-10',
-      kickoffDate: '',
       studyEndDate: '2026-11-16',
       independentProofObtained: false,
       checkpoints: [{
