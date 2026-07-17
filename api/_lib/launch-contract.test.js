@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   createLaunchPlan,
+  getCheckpointAttentionDate,
   getDefaultMinistryYearStart,
   getLaunchSummary,
   getStudyEndDate,
@@ -23,7 +24,7 @@ const orangevilleMonday = {
 test('creates the streamlined study launch plan with inferred resource profiles', () => {
   const launchPlan = createLaunchPlan(orangevilleMonday);
 
-  assert.equal(launchPlan.version, 2);
+  assert.equal(launchPlan.version, 3);
   assert.equal(launchPlan.pageMode, 'information_only');
   assert.equal(launchPlan.productionPath, 'admin_handoff');
   assert.equal(launchPlan.publicLaunchDate, '2026-08-10');
@@ -36,6 +37,9 @@ test('creates the streamlined study launch plan with inferred resource profiles'
   assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'physical_resource_received'), true);
   assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'digital_access_tested'), true);
   assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'planning_center_independent_proof'), false);
+  assert.equal(launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'master_brief_ready').taskPolicy, 'create');
+  assert.equal(launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'social_media_copy_ready').taskPolicy, 'group');
+  assert.equal(launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'planning_center_page_live').taskPolicy, 'monitor');
   assert.equal('kickoffDate' in launchPlan, false);
   assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'final_readiness_complete'), false);
   assert.deepEqual(
@@ -53,6 +57,18 @@ test('adds the independent-proof checkpoint only for Jonathan self-service', () 
   assert.equal(Boolean(proof), true);
   assert.equal(proof.calculatedDueDate, '2026-08-09');
   assert.equal(page.owner, 'Jonathan');
+  assert.equal(page.taskPolicy, 'create');
+});
+
+test('calculates a business-day attention date separately from the target date', () => {
+  const launchPlan = createLaunchPlan(orangevilleMonday);
+  const masterBrief = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'master_brief_ready');
+
+  assert.equal(masterBrief.calculatedDueDate, '2026-08-03');
+  assert.equal(getCheckpointAttentionDate(masterBrief), '2026-07-27');
+
+  masterBrief.dueDateOverride = '2026-07-27';
+  assert.equal(getCheckpointAttentionDate(masterBrief), '2026-07-20');
 });
 
 test('updates the automatic Planning Center owner when the production path changes', () => {
@@ -110,6 +126,7 @@ test('summarizes overdue, blocked, and completion state', () => {
   assert.equal(summary.blocked, 1);
   assert.equal(summary.overdue > 0, true);
   assert.equal(summary.nextCheckpoint.id, 'master_brief_ready');
+  assert.equal(summary.attentionNow > 0, true);
 });
 
 test('identifies past studies from an explicit or calculated end date', () => {
