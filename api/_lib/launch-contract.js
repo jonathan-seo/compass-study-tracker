@@ -310,6 +310,21 @@ function templateApplies(template, profiles, productionPath) {
   return true;
 }
 
+function checkpointDefaultOwner(template, productionPath) {
+  if (template.id !== 'planning_center_page_live') return template.owner;
+  if (productionPath === 'jonathan_self_service') return 'Jonathan';
+  if (productionPath === 'another_owner') return '';
+  return 'Director of Admin';
+}
+
+function checkpointOwner(template, previous, productionPath) {
+  const defaultOwner = checkpointDefaultOwner(template, productionPath);
+  if (template.id !== 'planning_center_page_live') return previous.owner || defaultOwner;
+
+  const previousWasAutomatic = !previous.owner || ['Director of Admin', 'Jonathan'].includes(previous.owner);
+  return previousWasAutomatic ? defaultOwner : previous.owner;
+}
+
 export function createLaunchPlan(study, existingPlan = {}) {
   const productionPath = PLANNING_CENTER_PRODUCTION_PATHS.includes(existingPlan.productionPath)
     ? existingPlan.productionPath
@@ -355,7 +370,7 @@ export function createLaunchPlan(study, existingPlan = {}) {
         phase: template.phase || 'pre_launch',
         affectsReadiness: template.affectsReadiness !== false,
         dependsOn: unique(dependsOn).filter((id) => applicableIds.has(id)),
-        owner: previous.owner || template.owner,
+        owner: checkpointOwner(template, previous, productionPath),
         status: LAUNCH_STATUSES.includes(previous.status) ? previous.status : 'not_started',
         calculatedDueDate,
         dueDateOverride: previous.dueDateOverride || '',
