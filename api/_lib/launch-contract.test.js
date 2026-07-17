@@ -48,9 +48,28 @@ test('creates the streamlined study launch plan with inferred resource profiles'
 test('adds the independent-proof checkpoint only for Jonathan self-service', () => {
   const launchPlan = createLaunchPlan(orangevilleMonday, { productionPath: 'jonathan_self_service' });
   const proof = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'planning_center_independent_proof');
+  const page = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'planning_center_page_live');
 
   assert.equal(Boolean(proof), true);
   assert.equal(proof.calculatedDueDate, '2026-08-09');
+  assert.equal(page.owner, 'Jonathan');
+});
+
+test('updates the automatic Planning Center owner when the production path changes', () => {
+  const adminPlan = createLaunchPlan(orangevilleMonday);
+  const selfServicePlan = createLaunchPlan(orangevilleMonday, {
+    ...adminPlan,
+    productionPath: 'jonathan_self_service',
+  });
+  const selfServicePage = selfServicePlan.checkpoints.find((checkpoint) => checkpoint.id === 'planning_center_page_live');
+
+  assert.equal(selfServicePage.owner, 'Jonathan');
+
+  selfServicePage.owner = 'Sarah';
+  const customOwnerPlan = createLaunchPlan(orangevilleMonday, selfServicePlan);
+  const customOwnerPage = customOwnerPlan.checkpoints.find((checkpoint) => checkpoint.id === 'planning_center_page_live');
+
+  assert.equal(customOwnerPage.owner, 'Sarah');
 });
 
 test('removes the Planning Center profile when a public page is not required', () => {
