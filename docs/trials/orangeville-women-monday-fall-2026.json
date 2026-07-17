@@ -1,0 +1,122 @@
+[
+  {
+    "title": "Luke: Gut-Level Compassion",
+    "ministryId": "womens_mon",
+    "startDate": "2026-09-21",
+    "weeks": 8,
+    "location": "Orangeville",
+    "stage": "sourcing",
+    "studyMaterial": "Approved / Team Notified",
+    "physicalResources": "Order placed",
+    "digitalResources": "Required",
+    "resourcesObtained": false,
+    "websiteUpdated": false,
+    "liveTracking": "Not started",
+    "postReview": "Not Started",
+    "notes": "Fall block runs through 2026-11-16 with a Thanksgiving break.",
+    "launchPlan": {
+      "version": 2,
+      "enabled": true,
+      "profiles": [
+        "universal_core",
+        "planning_center_information_page",
+        "physical_resource",
+        "digital_streaming"
+      ],
+      "pageMode": "information_only",
+      "productionPath": "admin_handoff",
+      "publicLaunchDate": "2026-08-10",
+      "studyEndDate": "2026-11-16",
+      "independentProofObtained": false,
+      "checkpoints": [
+        {
+          "id": "facts_locked",
+          "status": "done",
+          "completedAt": "2026-07-16",
+          "evidence": "Start date, title, fall block, and Thanksgiving break confirmed in the Fall Study Launch Readiness Matrix."
+        },
+        {
+          "id": "master_brief_ready",
+          "status": "in_progress",
+          "nextAction": "Finalize the approved master communication brief for Sarah."
+        },
+        {
+          "id": "planning_center_page_live",
+          "owner": "Sarah Dynes",
+          "status": "not_started",
+          "nextAction": "Build and publish the information-only Planning Center page from the approved brief."
+        },
+        {
+          "id": "planning_center_copy_ready",
+          "status": "not_started",
+          "nextAction": "Prepare the Planning Center information-page copy from the approved master brief."
+        },
+        {
+          "id": "compass_news_copy_ready",
+          "status": "not_started",
+          "nextAction": "Prepare the Compass News version from the approved master brief."
+        },
+        {
+          "id": "social_media_copy_ready",
+          "status": "not_started",
+          "nextAction": "Prepare the social-media version from the approved master brief."
+        },
+        {
+          "id": "sunday_slide_brief_ready",
+          "status": "not_started",
+          "nextAction": "Prepare the standard Sunday-slide brief."
+        },
+        {
+          "id": "leader_email_copy_ready",
+          "status": "not_started",
+          "nextAction": "Prepare the leader-email version from the approved master brief."
+        },
+        {
+          "id": "physical_resource_ordered",
+          "status": "done",
+          "completedAt": "2026-07-16",
+          "evidence": "40 copies ordered from Ekkuip at $23.25 each with free shipping."
+        },
+        {
+          "id": "physical_resource_received",
+          "status": "waiting_on_owner",
+          "nextAction": "Confirm delivery date and verify all 40 copies when received."
+        },
+        {
+          "id": "digital_access_tested",
+          "status": "not_started",
+          "nextAction": "Test streaming access with the actual account and room equipment."
+        },
+        {
+          "id": "promotion_submitted",
+          "status": "not_started",
+          "nextAction": "Submit the completed five-output communication package through the current owner routes."
+        },
+        {
+          "id": "promotion_outputs_verified",
+          "status": "not_started",
+          "nextAction": "Verify Planning Center, Compass News, social media, Sunday slides, and leader email are live or scheduled accurately."
+        },
+        {
+          "id": "leader_communication_confirmed",
+          "status": "waiting_on_owner",
+          "nextAction": "Confirm the participant communication route and leader-ready details."
+        },
+        {
+          "id": "venue_host_av_ready",
+          "status": "waiting_on_owner",
+          "nextAction": "Confirm room, access, setup, AV, accessibility, and cancellation route."
+        },
+        {
+          "id": "week_one_check_in",
+          "status": "not_started",
+          "nextAction": "Assign the week-one leader check-in owner and date."
+        },
+        {
+          "id": "launch_lessons_captured",
+          "status": "not_started"
+        }
+      ]
+    }
+  }
+]

@@ -1,6 +1,6 @@
 # Second Brain integration
 
-The Study Tracker remains the canonical store for study lifecycle, curriculum, resource, promotion, live-tracking, and post-study-review status. Second Brain supplies durable ministry context, and TodoJ remains Jonathan's source of truth for active personal tasks.
+The Study Tracker remains the canonical store for study lifecycle, curriculum, resource, launch readiness, promotion, live-tracking, and post-study-review status. Second Brain supplies durable ministry context, and TodoJ remains Jonathan's source of truth for active personal tasks.
 
 ## Endpoint
 
@@ -39,7 +39,8 @@ The response adds:
 
 - `ministryYear`, using September through August;
 - `needsAction`;
-- `actionSignals` for incomplete approval, resources, promotion, live tracking, or post-study review.
+- `actionSignals` for incomplete approval, resources, launch blockers, overdue launch checkpoints, promotion, live tracking, or post-study review;
+- `launchSummary`, including readiness percentage, blocked/overdue/due-soon counts, and the next checkpoint.
 
 The bridge reports observable tracker state and does not invent ordering or promotion deadlines.
 
@@ -77,6 +78,19 @@ PATCH requests are also dry-run by default:
 Set `"apply": true` to write. When `expectedUpdatedAt` is present, the update runs in a Firestore transaction and returns `409 Conflict` if the record changed after it was read.
 
 Only the documented Study Tracker fields are writable. Delete is intentionally not exposed.
+
+## Launch readiness payload
+
+The optional embedded `launchPlan` keeps existing studies backward compatible. A plan contains:
+
+- selected workflow profiles;
+- Planning Center page mode and production path;
+- public launch, kickoff, and study-end anchors;
+- generated checkpoints with owner, status, calculated date, override, next action, blocker, evidence, and completion date.
+
+The current ministry-study default is `information_only`; it does not create signup or payment requirements. The default production path is `admin_handoff`. Choosing `jonathan_self_service` adds the conditional independent-proof checkpoint.
+
+The app creates and recalculates plans. The API validates a complete nested `launchPlan` when Second Brain later previews or applies one.
 
 ## Local Second Brain command
 

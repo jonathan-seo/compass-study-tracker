@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom/client';
+import './index.css';
 import { 
   BookOpen, 
   Calendar, 
@@ -26,12 +27,27 @@ import {
   LogOut,
   Upload,
   Check,
-  AlertCircle
+  AlertCircle,
+  ListChecks,
+  RefreshCcw
 } from 'lucide-react';
+
+import {
+  LAUNCH_STATUSES,
+  PLANNING_CENTER_PAGE_MODES,
+  PLANNING_CENTER_PRODUCTION_PATHS,
+  createLaunchPlan,
+  effectiveDueDate,
+  getDefaultMinistryYearStart,
+  getLaunchSummary,
+  getUnmetDependencies,
+  isStudyPast,
+} from '../api/_lib/launch-contract.js';
 
 const STAGE_INDEXES = { planning: 0, approval: 1, sourcing: 2, promotion: 3, active: 4, review: 5 };
 const getStudyWarnings = (study) => {
-  const isPastApproval = STAGE_INDEXES[study.stage] > 1; 
+  if (study.launchPlan?.enabled) return { missingResources: false, missingPromotion: false };
+  const isPastApproval = STAGE_INDEXES[study.stage] > 1;
   return {
     missingResources: isPastApproval && !study.resourcesObtained,
     missingPromotion: isPastApproval && !study.websiteUpdated
@@ -88,13 +104,56 @@ const STAGES = [
 
 const OPTIONS = {
   STUDY_MATERIAL: ['Not Started', 'Requested from Team', 'Received from Team', 'Reviewed by Director', 'Approved / Team Notified'],
-  PHYSICAL_RESOURCES: ['Required', 'Quote request sent', 'Order placed', 'Received and distributed', 'Not required'],
-  DIGITAL_RESOURCES: ['Required', 'Procured and available', 'Not required'],
   LIVE_TRACKING: ['Not started', 'In Progress', 'Completed'],
   POST_REVIEW: ['Not Started', 'In Progress', 'Completed']
 };
 
 const LOCATIONS = ["Orangeville", "Shelburne", "Grand Valley", "Other"];
+
+const LAUNCH_STATUS_LABELS = {
+  not_started: 'Not started',
+  in_progress: 'In progress',
+  waiting_on_owner: 'Waiting on owner',
+  blocked: 'Blocked',
+  done: 'Done',
+  not_required: 'Not required',
+  accepted_risk: 'Accepted risk',
+};
+
+const PAGE_MODE_LABELS = {
+  information_only: 'Information only (current default)',
+  optional_signup: 'Optional signup',
+  required_signup: 'Required signup',
+  paid_registration: 'Paid registration',
+  not_required: 'No public Planning Center page',
+};
+
+const PRODUCTION_PATH_LABELS = {
+  admin_handoff: 'Hand off to Director of Admin',
+  jonathan_self_service: 'Jonathan builds or corrects',
+  other_owner: 'Another owner',
+};
+
+const emptyStudyForm = (stage = 'planning') => ({
+  title: '',
+  ministryId: 'mens',
+  stage,
+  location: 'Orangeville',
+  startDate: new Date().toISOString().split('T')[0],
+  weeks: 6,
+  studyMaterial: 'Not Started',
+  physicalResources: 'Not required',
+  digitalResources: 'Not required',
+  imageUrl: '',
+  resourcesObtained: false,
+  websiteUpdated: false,
+  liveTracking: 'Not started',
+  postReview: 'Not Started',
+  notes: '',
+  promoText: '',
+  updates: '',
+  launchPlan: null,
+});
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -119,25 +178,7 @@ const App = () => {
   const [authError, setAuthError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  const [formData, setFormData] = useState({
-    title: '', 
-    ministryId: 'mens', 
-    stage: 'planning', 
-    location: 'Orangeville', 
-    startDate: new Date().toISOString().split('T')[0],
-    weeks: 6,
-    studyMaterial: 'Not Started',
-    physicalResources: 'Not required',
-    digitalResources: 'Not required',
-    imageUrl: '',
-    resourcesObtained: false,
-    websiteUpdated: false,
-    liveTracking: 'Not started',
-    postReview: 'Not Started',
-    notes: '', 
-    promoText: '',
-    updates: ''
-  });
+  const [formData, setFormData] = useState(() => emptyStudyForm());
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -207,40 +248,78 @@ const App = () => {
   const handleOpenModal = (study = null, targetStage = null) => {
     if (study) {
       setEditingStudy(study);
-      setFormData({ 
-        weeks: 6,
-        studyMaterial: 'Not Started',
-        physicalResources: 'Not required',
-        digitalResources: 'Not required',
-        resourcesObtained: false,
-        websiteUpdated: false,
-        liveTracking: 'Not started',
-        postReview: 'Not Started',
-        promoText: '',
-        ...study 
-      });
+      setFormData({ ...emptyStudyForm(study.stage), ...study });
     } else {
       setEditingStudy(null);
-      setFormData({
-        title: '', 
-        ministryId: 'mens', 
-        stage: targetStage || activeStage, 
-        location: 'Orangeville', 
-        startDate: new Date().toISOString().split('T')[0],
-        weeks: 6,
-        studyMaterial: 'Not Started',
-        physicalResources: 'Not required',
-        digitalResources: 'Not required',
-        resourcesObtained: false,
-        websiteUpdated: false,
-        liveTracking: 'Not started',
-        postReview: 'Not Started',
-        notes: '', 
-        promoText: '',
-        updates: ''
-      });
+      setFormData(emptyStudyForm(targetStage || activeStage));
     }
     setIsModalOpen(true);
+  };
+
+  const updateStudyField = (field, value) => {
+    setFormData((current) => {
+      const next = { ...current, [field]: value };
+      if (current.launchPlan && ['startDate', 'weeks'].includes(field)) {
+        next.launchPlan = createLaunchPlan(next, current.launchPlan);
+      }
+      return next;
+    });
+  };
+
+  const enableLaunchPlan = () => {
+    setFormData((current) => ({ ...current, launchPlan: createLaunchPlan(current) }));
+  };
+
+  const updateLaunchPlan = (changes, recalculate = true) => {
+    setFormData((current) => {
+      const draft = { ...current.launchPlan, ...changes };
+      return {
+        ...current,
+        launchPlan: recalculate ? createLaunchPlan(current, draft) : draft,
+      };
+    });
+  };
+
+  const updateResourceRequirement = (field, profile, required) => {
+    setFormData((current) => {
+      const next = {
+        ...current,
+        [field]: required
+          ? (current[field] === 'Not required' ? 'Required' : current[field])
+          : 'Not required',
+      };
+      if (!current.launchPlan) return next;
+      const profiles = required
+        ? [...new Set([...current.launchPlan.profiles, profile])]
+        : current.launchPlan.profiles.filter((item) => item !== profile);
+      next.launchPlan = createLaunchPlan(next, { ...current.launchPlan, profiles });
+      return next;
+    });
+  };
+
+  const updateCheckpoint = (checkpointId, changes) => {
+    setFormData((current) => {
+      const today = new Date().toISOString().slice(0, 10);
+      const checkpoints = current.launchPlan.checkpoints.map((checkpoint) => {
+        if (checkpoint.id !== checkpointId) return checkpoint;
+        const updated = { ...checkpoint, ...changes };
+        if (changes.status) {
+          updated.completedAt = ['done', 'not_required', 'accepted_risk'].includes(changes.status)
+            ? (checkpoint.completedAt || today)
+            : '';
+        }
+        return updated;
+      });
+      const proof = checkpoints.find((checkpoint) => checkpoint.id === 'planning_center_independent_proof');
+      return {
+        ...current,
+        launchPlan: {
+          ...current.launchPlan,
+          checkpoints,
+          independentProofObtained: proof ? proof.status === 'done' : current.launchPlan.independentProofObtained,
+        },
+      };
+    });
   };
 
   const handleSave = async (e) => {
@@ -277,6 +356,7 @@ const App = () => {
   const StudyCard = ({ study, compact = false }) => {
     const ministry = MINISTRIES[study.ministryId.toUpperCase()] || MINISTRIES.MENS;
     const isDragging = draggedId === study.id;
+    const launchSummary = getLaunchSummary(study);
     
     const getStatusColor = (val) => {
       if (val?.includes('Approved') || val?.includes('available') || val?.includes('distributed')) return 'text-emerald-700 bg-emerald-50 border-emerald-200';
@@ -320,8 +400,18 @@ const App = () => {
                     </div>
                   );
                 })()}
+                {launchSummary.enabled && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5 pointer-events-none">
+                    <span className={`flex items-center gap-1 rounded border font-semibold ${compact ? 'text-[9px] px-1.5 py-0.5' : 'text-xs px-2.5 py-1'} ${launchSummary.blocked ? 'border-red-200 bg-red-50 text-red-700' : (launchSummary.overdue || launchSummary.acceptedRisk) ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-teal-200 bg-teal-50 text-teal-800'}`}>
+                      <ListChecks size={compact ? 11 : 14} /> Launch {launchSummary.readinessPercent}%
+                    </span>
+                    {launchSummary.blocked > 0 && <span className="text-[10px] font-semibold text-red-700">{launchSummary.blocked} blocked</span>}
+                    {launchSummary.overdue > 0 && <span className="text-[10px] font-semibold text-amber-800">{launchSummary.overdue} overdue</span>}
+                    {launchSummary.acceptedRisk > 0 && <span className="text-[10px] font-semibold text-amber-800">{launchSummary.acceptedRisk} accepted risk</span>}
+                  </div>
+                )}
               </div>
-              <button onClick={() => handleOpenModal(study)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md opacity-0 group-hover:opacity-100 transition-all">
+              <button aria-label={`Edit ${study.title}`} title="Edit study" onClick={() => handleOpenModal(study)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all">
                 <MoreVertical size={compact ? 16 : 20} />
               </button>
             </div>
@@ -332,10 +422,16 @@ const App = () => {
                   Material: {study.studyMaterial}
                 </span>
               )}
-              {study.physicalResources !== 'Not required' && (
+              {!launchSummary.enabled && study.physicalResources !== 'Not required' && (
                 <span className={`font-bold rounded border ${getStatusColor(study.physicalResources)} ${compact ? 'text-[8px] px-1.5 py-0.5 mt-1' : 'text-[10px] lg:text-xs px-2.5 py-1'}`}>
                   Resources: {study.physicalResources}
                 </span>
+              )}
+              {launchSummary.enabled && study.launchPlan.profiles.includes('physical_resource') && (
+                <span className={`font-bold rounded border text-emerald-700 bg-emerald-50 border-emerald-200 ${compact ? 'text-[8px] px-1.5 py-0.5 mt-1' : 'text-[10px] lg:text-xs px-2.5 py-1'}`}>Physical resources</span>
+              )}
+              {launchSummary.enabled && study.launchPlan.profiles.includes('digital_streaming') && (
+                <span className={`font-bold rounded border text-blue-700 bg-blue-50 border-blue-200 ${compact ? 'text-[8px] px-1.5 py-0.5 mt-1' : 'text-[10px] lg:text-xs px-2.5 py-1'}`}>Digital material</span>
               )}
             </div>
 
@@ -351,6 +447,77 @@ const App = () => {
               {compact && study.weeks && <span className="flex items-center gap-1.5"><Clock size={10}/> {study.weeks}w</span>}
             </div>
           </div>
+        </div>
+      </div>
+    );
+  };
+
+  const LaunchAttentionView = () => {
+    const rows = studies
+      .filter((study) => !isStudyPast(study))
+      .map((study) => ({ study, summary: getLaunchSummary(study) }))
+      .sort((left, right) => {
+        if (left.summary.enabled !== right.summary.enabled) return left.summary.enabled ? -1 : 1;
+        if (left.summary.blocked !== right.summary.blocked) return right.summary.blocked - left.summary.blocked;
+        if (left.summary.overdue !== right.summary.overdue) return right.summary.overdue - left.summary.overdue;
+        const leftDue = effectiveDueDate(left.summary.nextCheckpoint || {}) || '9999-12-31';
+        const rightDue = effectiveDueDate(right.summary.nextCheckpoint || {}) || '9999-12-31';
+        return leftDue.localeCompare(rightDue);
+      });
+    const activeRows = rows.filter(({ summary }) => summary.enabled);
+    const blocked = activeRows.reduce((total, { summary }) => total + summary.blocked, 0);
+    const overdue = activeRows.reduce((total, { summary }) => total + summary.overdue, 0);
+    const dueSoon = activeRows.reduce((total, { summary }) => total + summary.dueSoon, 0);
+
+    return (
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
+          <div>
+            <h2 className="text-2xl font-semibold text-slate-900">Launch attention</h2>
+            <p className="text-sm text-slate-500 mt-1">The next work needed to get every study ready on time.</p>
+          </div>
+          <div className="grid grid-cols-3 border border-slate-200 rounded-lg bg-white overflow-hidden min-w-[300px]">
+            <div className="px-4 py-3 border-r border-slate-200"><div className="text-xl font-semibold text-red-700">{blocked}</div><div className="text-[10px] uppercase font-semibold text-slate-500">Blocked</div></div>
+            <div className="px-4 py-3 border-r border-slate-200"><div className="text-xl font-semibold text-amber-700">{overdue}</div><div className="text-[10px] uppercase font-semibold text-slate-500">Overdue</div></div>
+            <div className="px-4 py-3"><div className="text-xl font-semibold text-teal-700">{dueSoon}</div><div className="text-[10px] uppercase font-semibold text-slate-500">Due soon</div></div>
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+          <div className="hidden lg:grid grid-cols-[minmax(220px,1.4fr)_110px_110px_minmax(260px,1.6fr)_90px] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-semibold text-slate-500">
+            <span>Study</span><span>Readiness</span><span>Attention</span><span>Next checkpoint</span><span></span>
+          </div>
+          {rows.length === 0 ? (
+            <div className="px-6 py-16 text-center text-slate-500">No current or upcoming studies need a launch checklist.</div>
+          ) : rows.map(({ study, summary }) => {
+            const ministry = MINISTRIES[study.ministryId.toUpperCase()] || MINISTRIES.MENS;
+            const nextDue = effectiveDueDate(summary.nextCheckpoint || {});
+            return (
+              <div key={study.id} className="grid lg:grid-cols-[minmax(220px,1.4fr)_110px_110px_minmax(260px,1.6fr)_90px] gap-3 lg:gap-4 items-center px-5 py-4 border-b border-slate-100 last:border-b-0">
+                <div className="min-w-0">
+                  <div className="font-semibold text-slate-900 truncate">{study.title}</div>
+                  <div className="text-xs text-slate-500 mt-1">{ministry.name} · {study.startDate}</div>
+                </div>
+                {summary.enabled ? (
+                  <>
+                    <div>
+                      <div className="flex items-center justify-between text-xs font-semibold text-slate-700 mb-1"><span>{summary.readinessPercent}%</span><span>{summary.complete}/{summary.total}</span></div>
+                      <div className="h-1.5 bg-slate-100 rounded overflow-hidden"><div className="h-full bg-teal-600" style={{ width: `${summary.readinessPercent}%` }} /></div>
+                    </div>
+                    <div className="text-xs font-semibold">
+                      {summary.blocked > 0 ? <span className="text-red-700">{summary.blocked} blocked</span> : summary.overdue > 0 ? <span className="text-amber-800">{summary.overdue} overdue</span> : summary.acceptedRisk > 0 ? <span className="text-amber-800">Accepted risk</span> : summary.ready ? <span className="text-teal-700">Ready</span> : <span className="text-teal-700">On track</span>}
+                    </div>
+                    <div className="min-w-0">
+                      {summary.nextCheckpoint ? <><div className="text-sm font-medium text-slate-800 truncate">{summary.nextCheckpoint.title}</div><div className="text-xs text-slate-500 mt-1">Due {nextDue || 'date not set'} · {LAUNCH_STATUS_LABELS[summary.nextCheckpoint.status]}</div></> : <span className={`text-sm font-medium ${summary.acceptedRisk ? 'text-amber-800' : 'text-teal-700'}`}>{summary.acceptedRisk ? 'Ready with accepted risk' : 'Ready'}</span>}
+                    </div>
+                  </>
+                ) : (
+                  <div className="lg:col-span-3 text-sm text-slate-500">Launch checklist not set up.</div>
+                )}
+                <button type="button" onClick={() => handleOpenModal(study)} className="justify-self-start lg:justify-self-end px-3 py-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-700 hover:bg-slate-50">{summary.enabled ? 'Open' : 'Set up'}</button>
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -534,7 +701,7 @@ const App = () => {
         'weeks', 'location', 'stage', 'notes', 'studyMaterial', 
         'physicalResources', 'digitalResources', 'imageUrl', 
         'resourcesObtained', 'websiteUpdated', 'liveTracking', 
-        'postReview', 'promoText', 'updates'
+        'postReview', 'promoText', 'updates', 'launchPlan'
       ];
       
       fieldsToCheck.forEach(field => {
@@ -553,6 +720,13 @@ const App = () => {
         if (field === 'weeks') {
           if (Number(valExist || 6) !== Number(valImport || 6)) {
             diffs[field] = { existing: Number(valExist || 6), imported: Number(valImport || 6) };
+          }
+          return;
+        }
+
+        if (field === 'launchPlan') {
+          if (JSON.stringify(valExist || null) !== JSON.stringify(valImport || null)) {
+            diffs[field] = { existing: valExist || null, imported: valImport || null };
           }
           return;
         }
@@ -730,6 +904,9 @@ const App = () => {
             promoText: item.imported.promoText || '',
             updates: item.imported.updates || ''
           };
+          if (item.imported.launchPlan) {
+            studyData.launchPlan = createLaunchPlan(studyData, item.imported.launchPlan);
+          }
           
           if (item.existing) {
             await updateDoc(doc(db, 'ministry_studies', item.existing.id), {
@@ -976,10 +1153,7 @@ const App = () => {
   };
 
   const CalendarView = () => {
-    const today = new Date();
-    const currentYear = today.getFullYear();
-    const currentMonth = today.getMonth(); // 0-11
-    const defaultStartYear = currentMonth >= 8 ? currentYear : currentYear - 1;
+    const defaultStartYear = getDefaultMinistryYearStart(studies);
     
     const [startYear, setStartYear] = useState(defaultStartYear);
     const endYear = startYear + 1;
@@ -1343,11 +1517,17 @@ const App = () => {
             >
               <Columns size={16} /> Pipeline
             </button>
-            <button 
-              onClick={() => setViewMode('calendar')} 
+            <button
+              onClick={() => setViewMode('calendar')}
               className={`flex items-center gap-2 px-3 md:px-4 py-1.5 rounded text-sm font-medium transition-colors ${viewMode === 'calendar' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
             >
               <Calendar size={16} /> Calendar
+            </button>
+            <button
+              onClick={() => setViewMode('launch')}
+              className={`flex items-center gap-2 px-3 md:px-4 py-1.5 rounded text-sm font-medium transition-colors ${viewMode === 'launch' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
+            >
+              <ListChecks size={16} /> Launch
             </button>
           </div>
         </div>
@@ -1369,7 +1549,9 @@ const App = () => {
       </header>
 
       <main className="w-full mx-auto p-6">
-        {viewMode === 'detail' ? (
+        {viewMode === 'launch' ? (
+          <LaunchAttentionView />
+        ) : viewMode === 'detail' ? (
           <div className="flex flex-col lg:flex-row gap-8 max-w-7xl mx-auto">
             <aside className="lg:w-64 flex-shrink-0">
               <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 ml-2">Workflow Stages</h3>
@@ -1451,11 +1633,11 @@ const App = () => {
 
       {/* Expanded Modal with Restored Fields */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
-          <div className="bg-white rounded-[3.5rem] shadow-2xl w-full max-w-4xl my-auto overflow-hidden animate-in zoom-in-95 duration-300">
-            <div className="p-10 border-b flex items-center justify-between bg-slate-50/50 sticky top-0 z-10">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
+          <div className="bg-white rounded-lg md:rounded-[3.5rem] shadow-2xl w-full max-w-4xl my-auto overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="p-5 md:p-10 border-b flex items-center justify-between bg-slate-50/50 sticky top-0 z-10">
               <div>
-                <h2 className="text-3xl font-black text-slate-800 tracking-tight leading-none">{editingStudy ? 'Update Study' : 'Register New Study'}</h2>
+                <h2 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight leading-none">{editingStudy ? 'Update Study' : 'Register New Study'}</h2>
                 <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mt-2">Discipleship Pathway Documentation</p>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="p-4 hover:bg-white border border-transparent hover:border-slate-200 rounded-3xl transition-all shadow-sm hover:shadow-md">
@@ -1463,7 +1645,7 @@ const App = () => {
               </button>
             </div>
             
-            <form onSubmit={handleSave} className="p-10 space-y-10 max-h-[70vh] overflow-y-auto custom-scrollbar">
+            <form onSubmit={handleSave} className="p-5 md:p-10 space-y-10 max-h-[70vh] overflow-y-auto custom-scrollbar">
               
               <div className="space-y-6">
                 <div className="flex items-center gap-2 text-blue-600">
@@ -1495,13 +1677,13 @@ const App = () => {
                   </div>
                   <div>
                     <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Start Date</label>
-                    <input type="date" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-blue-100 outline-none transition-all" value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} />
+                    <input type="date" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-blue-100 outline-none transition-all" value={formData.startDate} onChange={e => updateStudyField('startDate', e.target.value)} />
                   </div>
                   <div>
                     <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Number of Weeks</label>
                     <div className="relative">
                       <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                      <input type="number" className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-5 py-4 font-bold text-sm focus:ring-4 focus:ring-blue-100 outline-none transition-all" value={formData.weeks} onChange={e => setFormData({...formData, weeks: parseInt(e.target.value) || 0})} />
+                      <input type="number" className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-5 py-4 font-bold text-sm focus:ring-4 focus:ring-blue-100 outline-none transition-all" value={formData.weeks} onChange={e => updateStudyField('weeks', parseInt(e.target.value) || 0)} />
                     </div>
                   </div>
                 </div>
@@ -1510,94 +1692,138 @@ const App = () => {
               <div className="space-y-6 pt-6 border-t border-slate-100">
                 <div className="flex items-center gap-2 text-emerald-600">
                   <Package size={18} strokeWidth={3} />
-                  <h3 className="text-xs font-black uppercase tracking-[0.2em]">Resources & Tracking</h3>
+                  <h3 className="text-xs font-black uppercase tracking-[0.2em]">Study Setup</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="md:col-span-2 flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4">
-                    <input 
-                      type="checkbox" 
-                      id="resourcesObtained"
-                      className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" 
-                      checked={formData.resourcesObtained} 
-                      onChange={e => setFormData({...formData, resourcesObtained: e.target.checked})} 
-                    />
-                    <label htmlFor="resourcesObtained" className="text-sm font-bold text-slate-700 cursor-pointer">Resources obtained and available?</label>
-                  </div>
                   <div>
                     <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Study Material Status</label>
                     <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-emerald-100 outline-none transition-all" value={formData.studyMaterial} onChange={e => setFormData({...formData, studyMaterial: e.target.value})}>
                       {OPTIONS.STUDY_MATERIAL.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Physical Resources</label>
-                    <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-emerald-100 outline-none transition-all" value={formData.physicalResources} onChange={e => setFormData({...formData, physicalResources: e.target.value})}>
-                      {OPTIONS.PHYSICAL_RESOURCES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Digital Resources</label>
-                    <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-emerald-100 outline-none transition-all" value={formData.digitalResources} onChange={e => setFormData({...formData, digitalResources: e.target.value})}>
-                      {OPTIONS.DIGITAL_RESOURCES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
-                  </div>
+                  <label className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 cursor-pointer">
+                    <input type="checkbox" checked={formData.physicalResources !== 'Not required'} onChange={(e) => updateResourceRequirement('physicalResources', 'physical_resource', e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                    <span className="text-sm font-semibold text-slate-700">Physical books or workbooks required</span>
+                  </label>
+                  <label className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 cursor-pointer">
+                    <input type="checkbox" checked={formData.digitalResources !== 'Not required'} onChange={(e) => updateResourceRequirement('digitalResources', 'digital_streaming', e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                    <span className="text-sm font-semibold text-slate-700">Digital or streamed material required</span>
+                  </label>
                   <div>
                     <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Location</label>
                     <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-emerald-100 outline-none transition-all" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})}>
                       {LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
                     </select>
                   </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Study Notes</label>
+                    <textarea rows={3} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all focus:bg-white" placeholder="Record study-specific context or unresolved facts." value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} />
+                  </div>
                 </div>
               </div>
 
               <div className="space-y-6 pt-6 border-t border-slate-100">
-                <div className="flex items-center gap-2 text-purple-600">
-                  <Megaphone size={18} strokeWidth={3} />
-                  <h3 className="text-xs font-black uppercase tracking-[0.2em]">Promotion & Post-Study</h3>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-teal-700">
+                    <ListChecks size={18} strokeWidth={3} />
+                    <h3 className="text-xs font-black uppercase tracking-[0.2em]">Launch Readiness</h3>
+                  </div>
+                  {formData.launchPlan && (
+                    <button type="button" onClick={() => setFormData((current) => ({ ...current, launchPlan: createLaunchPlan(current, current.launchPlan) }))} className="flex items-center gap-2 px-3 py-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-700 hover:bg-slate-50 self-start">
+                      <RefreshCcw size={14} /> Recalculate dates
+                    </button>
+                  )}
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4">
-                    <input 
-                      type="checkbox" 
-                      id="websiteUpdated"
-                      className="w-5 h-5 rounded border-slate-300 text-purple-600 focus:ring-purple-500" 
-                      checked={formData.websiteUpdated} 
-                      onChange={e => setFormData({...formData, websiteUpdated: e.target.checked})} 
-                    />
-                    <label htmlFor="websiteUpdated" className="text-sm font-bold text-slate-700 cursor-pointer">Website Updated / Study Promoted?</label>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Live Study Tracking</label>
-                    <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-purple-100 outline-none transition-all" value={formData.liveTracking} onChange={e => setFormData({...formData, liveTracking: e.target.value})}>
-                      {OPTIONS.LIVE_TRACKING.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Proposed Promo Text</label>
-                    <div className="relative">
-                      <FileText className="absolute left-5 top-5 text-slate-400" size={18} />
-                      <textarea rows={3} className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-14 pr-5 py-4 text-base focus:ring-4 focus:ring-purple-100 outline-none transition-all focus:bg-white" placeholder="Enter blurb..." value={formData.promoText} onChange={e => setFormData({...formData, promoText: e.target.value})} />
+
+                {!formData.launchPlan ? (
+                  <div className="border border-dashed border-teal-300 bg-teal-50/40 rounded-lg p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <div className="font-semibold text-slate-900">Create a dated launch checklist</div>
+                      <p className="text-sm text-slate-600 mt-1">Starts with the universal workflow and information-only Planning Center page.</p>
                     </div>
+                    <button type="button" onClick={enableLaunchPlan} className="px-4 py-2.5 rounded-md bg-teal-700 text-white text-sm font-semibold hover:bg-teal-800 self-start">Create checklist</button>
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Post-Study Review Status</label>
-                    <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-purple-100 outline-none transition-all" value={formData.postReview} onChange={e => setFormData({...formData, postReview: e.target.value})}>
-                      {OPTIONS.POST_REVIEW.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Planning Center page mode</label>
+                        <select value={formData.launchPlan.pageMode} onChange={(e) => updateLaunchPlan({ pageMode: e.target.value })} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-teal-500 outline-none">
+                          {PLANNING_CENTER_PAGE_MODES.map((mode) => <option key={mode} value={mode}>{PAGE_MODE_LABELS[mode]}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Page production path</label>
+                        <select value={formData.launchPlan.productionPath} onChange={(e) => updateLaunchPlan({ productionPath: e.target.value })} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-teal-500 outline-none">
+                          {PLANNING_CENTER_PRODUCTION_PATHS.map((path) => <option key={path} value={path}>{PRODUCTION_PATH_LABELS[path]}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Public launch date</label>
+                        <input type="date" value={formData.launchPlan.publicLaunchDate} onChange={(e) => updateLaunchPlan({ publicLaunchDate: e.target.value })} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-teal-500 outline-none" />
+                      </div>
+                    </div>
+
+                    {formData.launchPlan.productionPath === 'jonathan_self_service' && (
+                      <div className="flex items-start gap-3 px-4 py-3 border border-amber-200 bg-amber-50 rounded-md">
+                        <AlertCircle size={18} className="text-amber-700 mt-0.5 flex-shrink-0" />
+                        <p className="text-sm text-amber-900">Independent proof is required only when Jonathan builds or materially corrects the page. Complete that checkpoint after someone has checked it.</p>
+                      </div>
+                    )}
+
+                    <div className="border border-slate-200 rounded-lg overflow-hidden">
+                      <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                        <span className="text-sm font-semibold text-slate-800">Launch checkpoints</span>
+                        <span className="text-xs text-slate-500">{getLaunchSummary(formData).complete}/{getLaunchSummary(formData).total} ready</span>
+                      </div>
+                      {formData.launchPlan.checkpoints.map((checkpoint, index, checkpoints) => (
+                        <React.Fragment key={checkpoint.id}>
+                          {checkpoint.phase === 'follow_up' && checkpoints[index - 1]?.phase !== 'follow_up' && (
+                            <div className="px-4 py-3 bg-slate-50 border-y border-slate-200 text-sm font-semibold text-slate-800">After-launch follow-up</div>
+                          )}
+                        <div className="p-4 border-b border-slate-100 last:border-b-0 space-y-3">
+                          <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="font-semibold text-slate-900">{checkpoint.title}</div>
+                              <p className="text-xs text-slate-500 mt-1 leading-relaxed">{checkpoint.description}</p>
+                              {getUnmetDependencies(formData.launchPlan, checkpoint).length > 0 && (
+                                <p className="text-xs font-semibold text-amber-800 mt-1">{getUnmetDependencies(formData.launchPlan, checkpoint).length} prerequisite{getUnmetDependencies(formData.launchPlan, checkpoint).length === 1 ? '' : 's'} remaining</p>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 flex-shrink-0">
+                              <select aria-label={`${checkpoint.title} status`} value={checkpoint.status} onChange={(e) => updateCheckpoint(checkpoint.id, { status: e.target.value })} className="border border-slate-300 rounded-md px-2.5 py-2 text-xs font-semibold bg-white focus:ring-2 focus:ring-teal-500 outline-none">
+                                {LAUNCH_STATUSES.map((status) => <option key={status} value={status} disabled={status === 'done' && getUnmetDependencies(formData.launchPlan, checkpoint).length > 0}>{LAUNCH_STATUS_LABELS[status]}</option>)}
+                              </select>
+                              <input aria-label={`${checkpoint.title} due date`} title={`Calculated: ${checkpoint.calculatedDueDate || 'not set'}`} type="date" value={checkpoint.dueDateOverride || checkpoint.calculatedDueDate} onChange={(e) => updateCheckpoint(checkpoint.id, { dueDateOverride: e.target.value === checkpoint.calculatedDueDate ? '' : e.target.value })} className="border border-slate-300 rounded-md px-2.5 py-2 text-xs font-semibold bg-white focus:ring-2 focus:ring-teal-500 outline-none" />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-2">
+                            <input aria-label={`${checkpoint.title} owner`} placeholder="Owner" value={checkpoint.owner} onChange={(e) => updateCheckpoint(checkpoint.id, { owner: e.target.value })} className="border border-slate-200 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
+                            <input aria-label={`${checkpoint.title} next action`} placeholder="Next action" value={checkpoint.nextAction} onChange={(e) => updateCheckpoint(checkpoint.id, { nextAction: e.target.value })} className="border border-slate-200 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
+                          </div>
+                          {(checkpoint.status === 'blocked' || checkpoint.blocker) && (
+                            <input aria-label={`${checkpoint.title} blocker`} placeholder="What is blocking this?" value={checkpoint.blocker} onChange={(e) => updateCheckpoint(checkpoint.id, { blocker: e.target.value })} className="w-full border border-red-200 bg-red-50 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-red-400 outline-none" />
+                          )}
+                          <details className="text-xs text-slate-500">
+                            <summary className="cursor-pointer font-semibold hover:text-slate-700">Evidence or link</summary>
+                            <textarea rows={2} aria-label={`${checkpoint.title} evidence`} value={checkpoint.evidence} onChange={(e) => updateCheckpoint(checkpoint.id, { evidence: e.target.value })} className="mt-2 w-full border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-teal-500 outline-none" placeholder="Record the URL, confirmation, or note that proves this is complete." />
+                          </details>
+                        </div>
+                        </React.Fragment>
+                      ))}
+                    </div>
+
+                    <button type="button" onClick={() => setFormData((current) => ({ ...current, launchPlan: null }))} className="text-xs font-semibold text-slate-500 hover:text-red-700">Remove launch checklist</button>
                   </div>
-                   <div>
-                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Quick Logistics Notes</label>
-                    <input className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-purple-100 outline-none transition-all" placeholder="Any final thoughts?" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} />
-                  </div>
-                </div>
+                )}
               </div>
 
-              <div className="flex gap-4 pt-10 justify-end border-t border-slate-100 sticky bottom-0 bg-white pb-2">
+              <div className="flex flex-wrap gap-2 md:gap-4 pt-10 justify-end border-t border-slate-100 pb-2">
                 {editingStudy && (
-                  <button type="button" onClick={() => handleDelete(editingStudy.id)} className="px-8 py-4 font-black text-[10px] text-rose-500 uppercase tracking-widest hover:bg-rose-50 rounded-2xl transition-all">Delete</button>
+                  <button type="button" onClick={() => handleDelete(editingStudy.id)} className="px-4 md:px-8 py-4 font-black text-[10px] text-rose-500 uppercase tracking-widest hover:bg-rose-50 rounded-2xl transition-all">Delete</button>
                 )}
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-8 py-4 font-bold text-slate-400">Cancel</button>
-                <button type="submit" className="bg-slate-900 px-12 py-4 rounded-[2rem] font-black text-base text-white shadow-2xl shadow-slate-200 flex items-center gap-3 active:scale-95 transition-all">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 md:px-8 py-4 font-bold text-slate-400">Cancel</button>
+                <button type="submit" className="bg-slate-900 px-6 md:px-12 py-4 rounded-[2rem] font-black text-base text-white shadow-2xl shadow-slate-200 flex items-center gap-3 active:scale-95 transition-all">
                   <Save size={20} strokeWidth={3} /> {editingStudy ? 'Update' : 'Save'}
                 </button>
               </div>
