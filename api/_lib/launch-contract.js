@@ -1,4 +1,4 @@
-export const LAUNCH_PLAN_VERSION = 2;
+export const LAUNCH_PLAN_VERSION = 3;
 
 export const LAUNCH_STATUSES = [
   'not_started',
@@ -225,6 +225,27 @@ export const LAUNCH_CHECKPOINT_TEMPLATES = [
   },
 ];
 
+const CHECKPOINT_TASK_RULES = {
+  facts_locked: { attentionLeadBusinessDays: 7, taskPolicy: 'create' },
+  master_brief_ready: { attentionLeadBusinessDays: 5, taskPolicy: 'create' },
+  planning_center_copy_ready: { attentionLeadBusinessDays: 5, taskPolicy: 'group', taskGroup: 'communication_outputs' },
+  compass_news_copy_ready: { attentionLeadBusinessDays: 5, taskPolicy: 'group', taskGroup: 'communication_outputs' },
+  social_media_copy_ready: { attentionLeadBusinessDays: 5, taskPolicy: 'group', taskGroup: 'communication_outputs' },
+  sunday_slide_brief_ready: { attentionLeadBusinessDays: 5, taskPolicy: 'group', taskGroup: 'communication_outputs' },
+  leader_email_copy_ready: { attentionLeadBusinessDays: 5, taskPolicy: 'group', taskGroup: 'communication_outputs' },
+  planning_center_independent_proof: { attentionLeadBusinessDays: 2, taskPolicy: 'create' },
+  planning_center_page_live: { attentionLeadBusinessDays: 5, taskPolicy: 'monitor' },
+  physical_resource_ordered: { attentionLeadBusinessDays: 10, taskPolicy: 'create' },
+  physical_resource_received: { attentionLeadBusinessDays: 2, taskPolicy: 'monitor' },
+  digital_access_tested: { attentionLeadBusinessDays: 5, taskPolicy: 'create' },
+  promotion_submitted: { attentionLeadBusinessDays: 7, taskPolicy: 'create' },
+  promotion_outputs_verified: { attentionLeadBusinessDays: 2, taskPolicy: 'monitor' },
+  leader_communication_confirmed: { attentionLeadBusinessDays: 5, taskPolicy: 'create' },
+  venue_host_av_ready: { attentionLeadBusinessDays: 7, taskPolicy: 'create' },
+  week_one_check_in: { attentionLeadBusinessDays: 2, taskPolicy: 'create' },
+  launch_lessons_captured: { attentionLeadBusinessDays: 5, taskPolicy: 'create' },
+};
+
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const COMPLETE_STATUSES = new Set(['done', 'not_required', 'accepted_risk']);
 const FOLLOW_UP_CHECKPOINT_IDS = new Set(['week_one_check_in', 'launch_lessons_captured']);
@@ -253,6 +274,18 @@ export function addDays(dateValue, days) {
   const date = parseDate(dateValue);
   if (!date) return '';
   date.setUTCDate(date.getUTCDate() + days);
+  return formatDate(date);
+}
+
+export function subtractBusinessDays(dateValue, days) {
+  const date = parseDate(dateValue);
+  if (!date) return '';
+  let remaining = Math.max(0, Number(days) || 0);
+  while (remaining > 0) {
+    date.setUTCDate(date.getUTCDate() - 1);
+    const day = date.getUTCDay();
+    if (day !== 0 && day !== 6) remaining -= 1;
+  }
   return formatDate(date);
 }
 
@@ -378,6 +411,11 @@ export function createLaunchPlan(study, existingPlan = {}) {
         blocker: previous.blocker || '',
         evidence: previous.evidence || '',
         completedAt: previous.completedAt || '',
+        attentionLeadBusinessDays: CHECKPOINT_TASK_RULES[template.id]?.attentionLeadBusinessDays || 5,
+        taskPolicy: template.id === 'planning_center_page_live' && productionPath === 'jonathan_self_service'
+          ? 'create'
+          : (CHECKPOINT_TASK_RULES[template.id]?.taskPolicy || 'create'),
+        taskGroup: CHECKPOINT_TASK_RULES[template.id]?.taskGroup || '',
       };
     });
 
@@ -386,6 +424,14 @@ export function createLaunchPlan(study, existingPlan = {}) {
 
 export function effectiveDueDate(checkpoint) {
   return checkpoint.dueDateOverride || checkpoint.calculatedDueDate || '';
+}
+
+export function getCheckpointAttentionDate(checkpoint) {
+  const rule = CHECKPOINT_TASK_RULES[checkpoint?.id] || {};
+  const lead = Number.isInteger(checkpoint?.attentionLeadBusinessDays)
+    ? checkpoint.attentionLeadBusinessDays
+    : (rule.attentionLeadBusinessDays || 5);
+  return subtractBusinessDays(effectiveDueDate(checkpoint), lead);
 }
 
 export function getUnmetDependencies(plan, checkpoint) {
@@ -406,6 +452,7 @@ export function getLaunchSummary(study, today = new Date().toISOString().slice(0
       blocked: 0,
       overdue: 0,
       dueSoon: 0,
+      attentionNow: 0,
       nextCheckpoint: null,
     };
   }
@@ -426,11 +473,17 @@ export function getLaunchSummary(study, today = new Date().toISOString().slice(0
     const dueDate = effectiveDueDate(checkpoint);
     return dueDate && dueDate >= today && dueDate <= dueSoonCutoff;
   });
+  const attentionNow = incomplete.filter((checkpoint) => {
+    const dueDate = effectiveDueDate(checkpoint);
+    const attentionDate = getCheckpointAttentionDate(checkpoint);
+    return attentionDate && attentionDate <= today && (!dueDate || dueDate >= today);
+  });
   const ordered = [...incomplete].sort((left, right) => {
     const leftBlocked = left.status === 'blocked' ? 0 : 1;
     const rightBlocked = right.status === 'blocked' ? 0 : 1;
     if (leftBlocked !== rightBlocked) return leftBlocked - rightBlocked;
-    return effectiveDueDate(left).localeCompare(effectiveDueDate(right));
+    const attentionOrder = getCheckpointAttentionDate(left).localeCompare(getCheckpointAttentionDate(right));
+    return attentionOrder || effectiveDueDate(left).localeCompare(effectiveDueDate(right));
   });
   const complete = checkpoints.length - incomplete.length;
   const acceptedRisk = checkpoints.filter((checkpoint) => checkpoint.status === 'accepted_risk').length;
@@ -445,6 +498,7 @@ export function getLaunchSummary(study, today = new Date().toISOString().slice(0
     blocked: blocked.length,
     overdue: overdue.length,
     dueSoon: dueSoon.length,
+    attentionNow: attentionNow.length,
     nextCheckpoint: ordered[0] || null,
   };
 }
@@ -498,6 +552,7 @@ export function sanitizeLaunchPlan(input) {
     seenIds.add(id);
     if (!LAUNCH_STATUSES.includes(checkpoint.status)) errors.push(`Invalid ${prefix}.status: ${checkpoint.status}`);
     const template = LAUNCH_CHECKPOINT_TEMPLATES.find((candidate) => candidate.id === id);
+    const taskRule = CHECKPOINT_TASK_RULES[id] || {};
     return {
       id,
       title: cleanText(checkpoint.title || '', 160, `${prefix}.title`, errors),
@@ -513,6 +568,11 @@ export function sanitizeLaunchPlan(input) {
       blocker: cleanText(checkpoint.blocker || '', 500, `${prefix}.blocker`, errors),
       evidence: cleanText(checkpoint.evidence || '', 1000, `${prefix}.evidence`, errors),
       completedAt: cleanOptionalDate(checkpoint.completedAt, `${prefix}.completedAt`, errors),
+      attentionLeadBusinessDays: taskRule.attentionLeadBusinessDays || 5,
+      taskPolicy: id === 'planning_center_page_live' && productionPath === 'jonathan_self_service'
+        ? 'create'
+        : (taskRule.taskPolicy || 'create'),
+      taskGroup: taskRule.taskGroup || '',
     };
   }).filter(Boolean);
 

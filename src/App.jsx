@@ -38,6 +38,7 @@ import {
   PLANNING_CENTER_PRODUCTION_PATHS,
   createLaunchPlan,
   effectiveDueDate,
+  getCheckpointAttentionDate,
   getDefaultMinistryYearStart,
   getLaunchSummary,
   getUnmetDependencies,
@@ -248,7 +249,11 @@ const App = () => {
   const handleOpenModal = (study = null, targetStage = null) => {
     if (study) {
       setEditingStudy(study);
-      setFormData({ ...emptyStudyForm(study.stage), ...study });
+      setFormData({
+        ...emptyStudyForm(study.stage),
+        ...study,
+        launchPlan: study.launchPlan ? createLaunchPlan(study, study.launchPlan) : null,
+      });
     } else {
       setEditingStudy(null);
       setFormData(emptyStudyForm(targetStage || activeStage));
@@ -468,6 +473,7 @@ const App = () => {
     const blocked = activeRows.reduce((total, { summary }) => total + summary.blocked, 0);
     const overdue = activeRows.reduce((total, { summary }) => total + summary.overdue, 0);
     const dueSoon = activeRows.reduce((total, { summary }) => total + summary.dueSoon, 0);
+    const attentionNow = activeRows.reduce((total, { summary }) => total + summary.attentionNow, 0);
 
     return (
       <div className="max-w-7xl mx-auto">
@@ -476,9 +482,10 @@ const App = () => {
             <h2 className="text-2xl font-semibold text-slate-900">Launch attention</h2>
             <p className="text-sm text-slate-500 mt-1">The next work needed to get every study ready on time.</p>
           </div>
-          <div className="grid grid-cols-3 border border-slate-200 rounded-lg bg-white overflow-hidden min-w-[300px]">
+          <div className="grid grid-cols-4 border border-slate-200 rounded-lg bg-white overflow-hidden min-w-[360px]">
             <div className="px-4 py-3 border-r border-slate-200"><div className="text-xl font-semibold text-red-700">{blocked}</div><div className="text-[10px] uppercase font-semibold text-slate-500">Blocked</div></div>
             <div className="px-4 py-3 border-r border-slate-200"><div className="text-xl font-semibold text-amber-700">{overdue}</div><div className="text-[10px] uppercase font-semibold text-slate-500">Overdue</div></div>
+            <div className="px-4 py-3 border-r border-slate-200"><div className="text-xl font-semibold text-blue-700">{attentionNow}</div><div className="text-[10px] uppercase font-semibold text-slate-500">Start now</div></div>
             <div className="px-4 py-3"><div className="text-xl font-semibold text-teal-700">{dueSoon}</div><div className="text-[10px] uppercase font-semibold text-slate-500">Due soon</div></div>
           </div>
         </div>
@@ -492,6 +499,7 @@ const App = () => {
           ) : rows.map(({ study, summary }) => {
             const ministry = MINISTRIES[study.ministryId.toUpperCase()] || MINISTRIES.MENS;
             const nextDue = effectiveDueDate(summary.nextCheckpoint || {});
+            const nextAttention = getCheckpointAttentionDate(summary.nextCheckpoint || {});
             return (
               <div key={study.id} className="grid lg:grid-cols-[minmax(220px,1.4fr)_110px_110px_minmax(260px,1.6fr)_90px] gap-3 lg:gap-4 items-center px-5 py-4 border-b border-slate-100 last:border-b-0">
                 <div className="min-w-0">
@@ -505,10 +513,10 @@ const App = () => {
                       <div className="h-1.5 bg-slate-100 rounded overflow-hidden"><div className="h-full bg-teal-600" style={{ width: `${summary.readinessPercent}%` }} /></div>
                     </div>
                     <div className="text-xs font-semibold">
-                      {summary.blocked > 0 ? <span className="text-red-700">{summary.blocked} blocked</span> : summary.overdue > 0 ? <span className="text-amber-800">{summary.overdue} overdue</span> : summary.acceptedRisk > 0 ? <span className="text-amber-800">Accepted risk</span> : summary.ready ? <span className="text-teal-700">Ready</span> : <span className="text-teal-700">On track</span>}
+                      {summary.blocked > 0 ? <span className="text-red-700">{summary.blocked} blocked</span> : summary.overdue > 0 ? <span className="text-amber-800">{summary.overdue} overdue</span> : summary.attentionNow > 0 ? <span className="text-blue-700">Start now</span> : summary.acceptedRisk > 0 ? <span className="text-amber-800">Accepted risk</span> : summary.ready ? <span className="text-teal-700">Ready</span> : <span className="text-teal-700">On track</span>}
                     </div>
                     <div className="min-w-0">
-                      {summary.nextCheckpoint ? <><div className="text-sm font-medium text-slate-800 truncate">{summary.nextCheckpoint.title}</div><div className="text-xs text-slate-500 mt-1">Due {nextDue || 'date not set'} · {LAUNCH_STATUS_LABELS[summary.nextCheckpoint.status]}</div></> : <span className={`text-sm font-medium ${summary.acceptedRisk ? 'text-amber-800' : 'text-teal-700'}`}>{summary.acceptedRisk ? 'Ready with accepted risk' : 'Ready'}</span>}
+                      {summary.nextCheckpoint ? <><div className="text-sm font-medium text-slate-800 truncate">{summary.nextCheckpoint.title}</div><div className="text-xs text-slate-500 mt-1">Start {nextAttention || 'date not set'} · Target {nextDue || 'date not set'} · {LAUNCH_STATUS_LABELS[summary.nextCheckpoint.status]}</div></> : <span className={`text-sm font-medium ${summary.acceptedRisk ? 'text-amber-800' : 'text-teal-700'}`}>{summary.acceptedRisk ? 'Ready with accepted risk' : 'Ready'}</span>}
                     </div>
                   </>
                 ) : (
@@ -1786,6 +1794,7 @@ const App = () => {
                             <div className="min-w-0">
                               <div className="font-semibold text-slate-900">{checkpoint.title}</div>
                               <p className="text-xs text-slate-500 mt-1 leading-relaxed">{checkpoint.description}</p>
+                              <p className="text-xs text-blue-700 mt-1">Start by {getCheckpointAttentionDate(checkpoint) || 'date not set'} · Target {effectiveDueDate(checkpoint) || 'date not set'}</p>
                               {getUnmetDependencies(formData.launchPlan, checkpoint).length > 0 && (
                                 <p className="text-xs font-semibold text-amber-800 mt-1">{getUnmetDependencies(formData.launchPlan, checkpoint).length} prerequisite{getUnmetDependencies(formData.launchPlan, checkpoint).length === 1 ? '' : 's'} remaining</p>
                               )}
@@ -1794,7 +1803,7 @@ const App = () => {
                               <select aria-label={`${checkpoint.title} status`} value={checkpoint.status} onChange={(e) => updateCheckpoint(checkpoint.id, { status: e.target.value })} className="border border-slate-300 rounded-md px-2.5 py-2 text-xs font-semibold bg-white focus:ring-2 focus:ring-teal-500 outline-none">
                                 {LAUNCH_STATUSES.map((status) => <option key={status} value={status} disabled={status === 'done' && getUnmetDependencies(formData.launchPlan, checkpoint).length > 0}>{LAUNCH_STATUS_LABELS[status]}</option>)}
                               </select>
-                              <input aria-label={`${checkpoint.title} due date`} title={`Calculated: ${checkpoint.calculatedDueDate || 'not set'}`} type="date" value={checkpoint.dueDateOverride || checkpoint.calculatedDueDate} onChange={(e) => updateCheckpoint(checkpoint.id, { dueDateOverride: e.target.value === checkpoint.calculatedDueDate ? '' : e.target.value })} className="border border-slate-300 rounded-md px-2.5 py-2 text-xs font-semibold bg-white focus:ring-2 focus:ring-teal-500 outline-none" />
+                              <input aria-label={`${checkpoint.title} target date`} title={`Calculated target: ${checkpoint.calculatedDueDate || 'not set'}`} type="date" value={checkpoint.dueDateOverride || checkpoint.calculatedDueDate} onChange={(e) => updateCheckpoint(checkpoint.id, { dueDateOverride: e.target.value === checkpoint.calculatedDueDate ? '' : e.target.value })} className="border border-slate-300 rounded-md px-2.5 py-2 text-xs font-semibold bg-white focus:ring-2 focus:ring-teal-500 outline-none" />
                             </div>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-2">
