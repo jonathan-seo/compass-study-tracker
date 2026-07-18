@@ -86,7 +86,7 @@ The optional embedded `launchPlan` keeps existing studies backward compatible. A
 - selected workflow profiles;
 - Planning Center page mode and production path;
 - public launch, kickoff, and study-end anchors;
-- generated checkpoints with owner, status, calculated date, override, next action, blocker, evidence, and completion date.
+- generated checkpoints with owner, status, calculated date, override, next action, blocker, working notes, evidence, and completion date.
 
 The current ministry-study default is `information_only`; it does not create signup or payment requirements. The default production path is `admin_handoff`. Choosing `jonathan_self_service` adds the conditional independent-proof checkpoint.
 

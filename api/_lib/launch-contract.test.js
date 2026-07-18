@@ -103,6 +103,7 @@ test('preserves checkpoint progress while recalculating dates', () => {
   const first = createLaunchPlan(orangevilleMonday);
   const ordered = first.checkpoints.find((checkpoint) => checkpoint.id === 'physical_resource_ordered');
   ordered.status = 'done';
+  ordered.notes = 'Supplier confirmed the order by email. Keep the delivery thread here.';
   ordered.evidence = 'Ekkuip order placed';
   ordered.completedAt = '2026-07-14';
 
@@ -110,6 +111,7 @@ test('preserves checkpoint progress while recalculating dates', () => {
   const preserved = revised.checkpoints.find((checkpoint) => checkpoint.id === 'physical_resource_ordered');
 
   assert.equal(preserved.status, 'done');
+  assert.equal(preserved.notes, 'Supplier confirmed the order by email. Keep the delivery thread here.');
   assert.equal(preserved.evidence, 'Ekkuip order placed');
   assert.equal(preserved.calculatedDueDate, '2026-08-17');
 });
@@ -172,6 +174,20 @@ test('sanitizes nested launch data and rejects invalid checkpoint status', () =>
 
   assert.equal(result.errors.some((error) => error.includes('Invalid launchPlan.checkpoints[0].status')), true);
   assert.equal(result.launchPlan.checkpoints[0].status, 'not_started');
+});
+
+test('sanitizes checkpoint working notes independently from completion evidence', () => {
+  const launchPlan = createLaunchPlan(orangevilleMonday);
+  const masterBrief = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'master_brief_ready');
+  masterBrief.notes = 'Master brief draft with audience, message, dates, and calls to action.';
+  masterBrief.evidence = 'Approved by Jonathan on 2026-07-18.';
+
+  const result = sanitizeLaunchPlan(launchPlan);
+  const sanitized = result.launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'master_brief_ready');
+
+  assert.deepEqual(result.errors, []);
+  assert.equal(sanitized.notes, masterBrief.notes);
+  assert.equal(sanitized.evidence, masterBrief.evidence);
 });
 
 test('prevents promotion submission from completing before all five standard outputs', () => {

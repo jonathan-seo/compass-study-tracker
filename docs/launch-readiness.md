@@ -9,7 +9,8 @@ Launch readiness turns the post-decision SOP into dated work on each study while
 - Confirm who is producing the page. `Hand off to Director of Admin` is the current default.
 - Select only the applicable workflow sections, such as physical resources, digital material, offsite hosting, Sunday services, or a separate kickoff.
 - Review calculated dates and override an individual checkpoint only when ministry reality requires it.
-- Record status, owner, next action, blocker, and completion evidence as work progresses.
+- Record status, owner, next action, blocker, working notes, and completion evidence as work progresses.
+- Use Working notes for evolving content such as master and tailored briefs, supplier communication, decisions, and stage-specific context. Keep Evidence or link for concise completion proof.
 - Use the **Launch** view to work from blocked, overdue, and next-due items across studies.
 
 Changing the study start date, duration, resource type, launch date, kickoff date, profile selection, or production path recalculates the applicable checklist while preserving checkpoint progress.
