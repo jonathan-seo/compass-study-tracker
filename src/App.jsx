@@ -1814,8 +1814,12 @@ const App = () => {
                             <input aria-label={`${checkpoint.title} blocker`} placeholder="What is blocking this?" value={checkpoint.blocker} onChange={(e) => updateCheckpoint(checkpoint.id, { blocker: e.target.value })} className="w-full border border-red-200 bg-red-50 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-red-400 outline-none" />
                           )}
                           <details className="text-xs text-slate-500">
+                            <summary className="cursor-pointer font-semibold hover:text-slate-700">Working notes</summary>
+                            <textarea rows={6} maxLength={12000} aria-label={`${checkpoint.title} working notes`} value={checkpoint.notes || ''} onChange={(e) => updateCheckpoint(checkpoint.id, { notes: e.target.value })} className="mt-2 w-full border border-slate-200 rounded-md px-3 py-2 text-sm leading-relaxed text-slate-800 focus:ring-2 focus:ring-teal-500 outline-none resize-y" placeholder="Store draft copy, supplier communication, decisions, or other working context for this stage." />
+                          </details>
+                          <details className="text-xs text-slate-500">
                             <summary className="cursor-pointer font-semibold hover:text-slate-700">Evidence or link</summary>
-                            <textarea rows={2} aria-label={`${checkpoint.title} evidence`} value={checkpoint.evidence} onChange={(e) => updateCheckpoint(checkpoint.id, { evidence: e.target.value })} className="mt-2 w-full border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-teal-500 outline-none" placeholder="Record the URL, confirmation, or note that proves this is complete." />
+                            <textarea rows={2} aria-label={`${checkpoint.title} evidence`} value={checkpoint.evidence} onChange={(e) => updateCheckpoint(checkpoint.id, { evidence: e.target.value })} className="mt-2 w-full border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-teal-500 outline-none" placeholder="Record the URL or concise confirmation that proves this is complete." />
                           </details>
                         </div>
                         </React.Fragment>

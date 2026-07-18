@@ -89,6 +89,7 @@ test('accepts a validated launch plan as a writable nested field', () => {
         dueDateOverride: '',
         nextAction: '',
         blocker: '',
+        notes: 'Working copy for the stage.',
         evidence: 'Confirmed from ministry calendar',
         completedAt: '2026-07-16',
       }],
@@ -98,4 +99,5 @@ test('accepts a validated launch plan as a writable nested field', () => {
   assert.deepEqual(result.errors, []);
   assert.equal(result.changes.launchPlan.pageMode, 'information_only');
   assert.equal(result.changes.launchPlan.checkpoints[0].status, 'done');
+  assert.equal(result.changes.launchPlan.checkpoints[0].notes, 'Working copy for the stage.');
 });
