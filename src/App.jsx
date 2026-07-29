@@ -29,8 +29,16 @@ import {
   Check,
   AlertCircle,
   ListChecks,
-  RefreshCcw
+  RefreshCcw,
+  History
 } from 'lucide-react';
+
+const getMinistryYearForDate = (startDate) => {
+  if (!startDate || typeof startDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) return '';
+  const year = Number(startDate.slice(0, 4));
+  const month = Number(startDate.slice(5, 7));
+  return month >= 9 ? `${year}-${year + 1}` : `${year - 1}-${year}`;
+};
 
 import {
   LAUNCH_STATUSES,
@@ -537,6 +545,79 @@ const App = () => {
     const [endDate, setEndDate] = useState('');
     const [targetMinistries, setTargetMinistries] = useState(['all']);
     const [editingId, setEditingId] = useState(null);
+    const [showHistory, setShowHistory] = useState(false);
+
+    const targetCutoffDateStr = useMemo(() => {
+      const today = new Date();
+      const formatYMD = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
+      const todayStr = formatYMD(today);
+      const currentYear = today.getFullYear();
+      const currentMonth = today.getMonth(); // 0-11
+      const defaultStartYear = currentMonth >= 8 ? currentYear : currentYear - 1;
+      const currentMinYearLabel = `${defaultStartYear}-${defaultStartYear + 1}`;
+
+      // Check if all studies in current calendar ministry year are complete
+      const yearStudies = studies.filter(s => getMinistryYearForDate(s.startDate) === currentMinYearLabel);
+      
+      let maxStudyEndStr = null;
+      if (yearStudies.length > 0) {
+        yearStudies.forEach(s => {
+          if (!s.startDate || !s.weeks) return;
+          const [y, m, d] = s.startDate.split('-');
+          const sStart = new Date(Number(y), Number(m) - 1, Number(d));
+          let currentIterDate = new Date(sStart);
+          let weeksToComplete = s.weeks;
+          let totalDurationDays = 0;
+          
+          while (weeksToComplete > 0 && totalDurationDays < 365 * 5) {
+            const sundayOfWeek = new Date(currentIterDate);
+            sundayOfWeek.setDate(sundayOfWeek.getDate() - sundayOfWeek.getDay());
+            const dateStr = formatYMD(sundayOfWeek);
+            const isBlackout = blackouts.some(b => {
+              const bdStart = b.startDate || b.date;
+              const bdEnd = b.endDate || b.date;
+              const applies = (b.ministries || ['all']).includes('all') || (b.ministries || []).includes(s.ministryId);
+              return applies && dateStr >= bdStart && dateStr <= bdEnd;
+            });
+            if (!isBlackout) weeksToComplete--;
+            currentIterDate.setDate(currentIterDate.getDate() + 7);
+            totalDurationDays += 7;
+          }
+          const sEnd = new Date(sStart.getTime() + totalDurationDays * (1000 * 60 * 60 * 24));
+          const endStr = formatYMD(sEnd);
+          if (!maxStudyEndStr || endStr > maxStudyEndStr) {
+            maxStudyEndStr = endStr;
+          }
+        });
+      }
+
+      let effectiveStartYear = defaultStartYear;
+      if (yearStudies.length === 0 || (maxStudyEndStr && todayStr > maxStudyEndStr)) {
+        effectiveStartYear = defaultStartYear + 1;
+      }
+
+      return `${effectiveStartYear}-09-01`;
+    }, [studies, blackouts]);
+
+    const { filteredBlackouts, historicalCount } = useMemo(() => {
+      let historical = 0;
+      const sorted = [...blackouts].sort((a,b) => (a.startDate || a.date).localeCompare(b.startDate || b.date));
+      
+      const filtered = sorted.filter(b => {
+        const bEnd = b.endDate || b.startDate || b.date;
+        const isPast = bEnd && bEnd < targetCutoffDateStr;
+        if (isPast) historical++;
+        if (showHistory) return true;
+        return !isPast;
+      });
+
+      return { filteredBlackouts: filtered, historicalCount: historical };
+    }, [blackouts, targetCutoffDateStr, showHistory]);
 
     const isAll = targetMinistries.includes('all');
 
@@ -658,13 +739,40 @@ const App = () => {
             </div>
             
             <div className="md:w-1/2 flex flex-col border-t md:border-t-0 md:border-l border-slate-100 pt-8 md:pt-0 md:pl-8">
-              <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-4 ml-1">Active Interruptions</h3>
+              <div className="flex items-center justify-between mb-4 flex-shrink-0">
+                <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400 ml-1">Active Interruptions</h3>
+                <button 
+                  type="button" 
+                  onClick={() => setShowHistory(!showHistory)} 
+                  className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-all border shadow-sm active:scale-95 flex items-center gap-1.5 ${
+                    showHistory 
+                      ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100' 
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <History size={13}/> 
+                  {showHistory ? 'Showing All' : `Show History${historicalCount > 0 ? ` (${historicalCount})` : ''}`}
+                </button>
+              </div>
               <div className="flex-1 space-y-3 overflow-y-auto pr-2 custom-scrollbar p-1">
-                {blackouts.length === 0 ? (
+                {filteredBlackouts.length === 0 ? (
                   <div className="p-8 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
-                    <p className="text-sm text-slate-400 font-bold">No active interruptions</p>
+                    <p className="text-sm text-slate-400 font-bold">
+                      {historicalCount > 0 && !showHistory 
+                        ? 'No active interruptions for upcoming ministry year' 
+                        : 'No active interruptions'}
+                    </p>
+                    {historicalCount > 0 && !showHistory && (
+                      <button 
+                        type="button"
+                        onClick={() => setShowHistory(true)}
+                        className="mt-3 text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        View {historicalCount} historical {historicalCount === 1 ? 'interruption' : 'interruptions'}
+                      </button>
+                    )}
                   </div>
-                ) : blackouts.sort((a,b) => (a.startDate || a.date).localeCompare(b.startDate || b.date)).map(b => (
+                ) : filteredBlackouts.map(b => (
                   <div key={b.id} className="bg-white p-4 lg:p-5 rounded-2xl border border-slate-200 shadow-sm relative group hover:border-blue-300 hover:shadow-md transition-all">
                     <div className="absolute top-4 right-4 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-white">
                       <button onClick={() => handleEdit(b)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all border border-transparent hover:border-blue-100"><FileText size={14}/></button>
