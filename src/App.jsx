@@ -49,9 +49,10 @@ import {
   effectiveDueDate,
   getCheckpointAttentionDate,
   getDefaultMinistryYearStart,
+  getLaunchGridSections,
   getLaunchSummary,
   getUnmetDependencies,
-  isStudyPast,
+  isCheckpointComplete,
 } from '../api/_lib/launch-contract.js';
 
 const STAGE_INDEXES = { planning: 0, approval: 1, sourcing: 2, promotion: 3, active: 4, review: 5 };
@@ -144,7 +145,52 @@ const PRODUCTION_PATH_LABELS = {
   other_owner: 'Another owner',
 };
 
-const COMMUNICATION_PROFILE_IDS = ['compass_news', 'social_media', 'sunday_slide'];
+const COMMUNICATION_PROFILE_IDS = ['social_media', 'sunday_slide'];
+
+const LAUNCH_GRID_COLUMNS = [
+  { id: 'planning_center_copy_ready', label: 'Master blurb' },
+  { id: 'planning_center_independent_proof', label: 'Independent proof' },
+  { id: 'planning_center_page_live', label: 'PCO live' },
+  { id: 'public_information_exception_confirmed', label: 'Info exception' },
+  { id: 'planning_center_registration_settings_verified', label: 'Registration' },
+  { id: 'payment_flow_verified', label: 'Payment' },
+  { id: 'physical_resource_ordered', label: 'Books ordered' },
+  { id: 'physical_resource_received', label: 'Books ready' },
+  { id: 'digital_access_tested', label: 'Digital tested' },
+  { id: 'social_media_copy_ready', label: 'Social' },
+  { id: 'sunday_slide_brief_ready', label: 'Service graphics' },
+  { id: 'venue_host_av_ready', label: 'Venue / AV' },
+  { id: 'focus_group_companion_confirmed', label: 'Focus Group' },
+  { id: 'leaders_notified_launch_ready', label: 'Leaders notified' },
+];
+
+const LaunchStatusIndicator = ({ checkpoint, today }) => {
+  if (!checkpoint) {
+    return <span title="Not required for this study" aria-label="Not required for this study" className="inline-flex h-7 w-7 items-center justify-center text-slate-300 text-lg">&ndash;</span>;
+  }
+
+  const overdue = !isCheckpointComplete(checkpoint) && effectiveDueDate(checkpoint) && effectiveDueDate(checkpoint) < today;
+  const label = overdue ? 'Overdue' : LAUNCH_STATUS_LABELS[checkpoint.status];
+  if (overdue || checkpoint.status === 'blocked') {
+    return <AlertCircle size={18} className="text-red-600" title={label} aria-label={label} />;
+  }
+  if (checkpoint.status === 'done') {
+    return <Check size={19} strokeWidth={3} className="text-emerald-600" title={label} aria-label={label} />;
+  }
+  if (checkpoint.status === 'in_progress') {
+    return <span title={label} aria-label={label} className="inline-block h-4 w-4 rounded-full border-2 border-amber-500 bg-[linear-gradient(90deg,#f59e0b_50%,transparent_50%)]" />;
+  }
+  if (checkpoint.status === 'waiting_on_owner') {
+    return <Clock size={18} className="text-blue-600" title={label} aria-label={label} />;
+  }
+  if (checkpoint.status === 'accepted_risk') {
+    return <AlertTriangle size={18} className="text-amber-600" title={label} aria-label={label} />;
+  }
+  if (checkpoint.status === 'not_required') {
+    return <span title={label} aria-label={label} className="inline-flex h-7 w-7 items-center justify-center text-slate-400 text-lg">&ndash;</span>;
+  }
+  return <span title={label} aria-label={label} className="inline-block h-4 w-4 rounded-full border-2 border-slate-400 bg-white" />;
+};
 
 const emptyStudyForm = (stage = 'planning') => ({
   title: '',
@@ -481,29 +527,92 @@ const App = () => {
   };
 
   const LaunchAttentionView = () => {
-    const rows = studies
-      .filter((study) => !isStudyPast(study))
-      .map((study) => ({ study, summary: getLaunchSummary(study) }))
-      .sort((left, right) => {
-        if (left.summary.enabled !== right.summary.enabled) return left.summary.enabled ? -1 : 1;
-        if (left.summary.blocked !== right.summary.blocked) return right.summary.blocked - left.summary.blocked;
-        if (left.summary.overdue !== right.summary.overdue) return right.summary.overdue - left.summary.overdue;
-        const leftDue = effectiveDueDate(left.summary.nextCheckpoint || {}) || '9999-12-31';
-        const rightDue = effectiveDueDate(right.summary.nextCheckpoint || {}) || '9999-12-31';
-        return leftDue.localeCompare(rightDue);
-      });
-    const activeRows = rows.filter(({ summary }) => summary.enabled);
-    const blocked = activeRows.reduce((total, { summary }) => total + summary.blocked, 0);
-    const overdue = activeRows.reduce((total, { summary }) => total + summary.overdue, 0);
-    const dueSoon = activeRows.reduce((total, { summary }) => total + summary.dueSoon, 0);
-    const attentionNow = activeRows.reduce((total, { summary }) => total + summary.attentionNow, 0);
+    const today = new Date().toISOString().slice(0, 10);
+    const { ministryYearLabel, nextStudies, laterStudies } = getLaunchGridSections(studies, today);
+    const prepareRows = (sectionStudies) => sectionStudies.map((study) => {
+      const launchPlan = createLaunchPlan(study, { ...(study.launchPlan || {}), enabled: true });
+      return {
+        study,
+        launchPlan,
+        summary: getLaunchSummary({ ...study, launchPlan }, today),
+        isSetUp: Boolean(study.launchPlan?.enabled),
+      };
+    });
+    const nextRows = prepareRows(nextStudies);
+    const laterRows = prepareRows(laterStudies);
+    const allRows = [...nextRows, ...laterRows];
+    const visibleColumns = LAUNCH_GRID_COLUMNS.filter(({ id }) => (
+      allRows.some(({ launchPlan }) => launchPlan.checkpoints.some((checkpoint) => checkpoint.id === id))
+    ));
+    const blocked = allRows.reduce((total, { summary }) => total + summary.blocked, 0);
+    const overdue = allRows.reduce((total, { summary }) => total + summary.overdue, 0);
+    const dueSoon = allRows.reduce((total, { summary }) => total + summary.dueSoon, 0);
+    const attentionNow = allRows.reduce((total, { summary }) => total + summary.attentionNow, 0);
+
+    const ReadinessTable = ({ rows, emptyMessage }) => (
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-left">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-200">
+              <th className="sticky left-0 z-20 min-w-[250px] bg-slate-50 px-4 py-3 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Study</th>
+              <th className="min-w-[90px] px-3 py-3 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">Ready</th>
+              {visibleColumns.map((column) => (
+                <th key={column.id} className="min-w-[92px] max-w-[105px] px-2 py-3 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500 leading-tight">{column.label}</th>
+              ))}
+              <th className="min-w-[210px] px-4 py-3 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Next action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr><td colSpan={visibleColumns.length + 3} className="px-6 py-10 text-center text-sm text-slate-500">{emptyMessage}</td></tr>
+            ) : rows.map(({ study, launchPlan, summary, isSetUp }) => {
+              const ministry = MINISTRIES[study.ministryId?.toUpperCase()] || MINISTRIES.MENS;
+              return (
+                <tr key={study.id} className="group border-b border-slate-100 last:border-b-0 hover:bg-slate-50/70">
+                  <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 px-4 py-3">
+                    <button type="button" onClick={() => handleOpenModal(study)} className="block w-full text-left">
+                      <span className="block max-w-[230px] truncate text-sm font-semibold text-slate-900">{study.title}</span>
+                      <span className="mt-1 block text-xs text-slate-500">{ministry.name} &middot; {study.location} &middot; {study.startDate}</span>
+                      {!isSetUp && <span className="mt-1 block text-[10px] font-semibold uppercase text-blue-700">Preview &mdash; set up checklist</span>}
+                    </button>
+                  </td>
+                  <td className="px-3 py-3 text-center">
+                    <button type="button" onClick={() => handleOpenModal(study)} className={`inline-flex min-w-[58px] justify-center rounded-full px-2.5 py-1 text-xs font-semibold ${summary.ready ? 'bg-emerald-100 text-emerald-800' : summary.blocked || summary.overdue ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-700'}`}>{summary.readinessPercent}%</button>
+                  </td>
+                  {visibleColumns.map((column) => {
+                    const checkpoint = launchPlan.checkpoints.find((candidate) => candidate.id === column.id);
+                    return (
+                      <td key={column.id} className="px-2 py-3 text-center">
+                        <button type="button" onClick={() => handleOpenModal(study)} className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-slate-100" aria-label={`${study.title}: ${column.label}`}>
+                          <LaunchStatusIndicator checkpoint={checkpoint} today={today} />
+                        </button>
+                      </td>
+                    );
+                  })}
+                  <td className="px-4 py-3">
+                    <button type="button" onClick={() => handleOpenModal(study)} className="block max-w-[260px] text-left">
+                      {summary.nextCheckpoint ? (
+                        <>
+                          <span className="block truncate text-sm font-medium text-slate-800">{summary.nextCheckpoint.nextAction || summary.nextCheckpoint.title}</span>
+                          <span className="mt-1 block text-xs text-slate-500">Target {effectiveDueDate(summary.nextCheckpoint) || 'date not set'} &middot; {LAUNCH_STATUS_LABELS[summary.nextCheckpoint.status]}</span>
+                        </>
+                      ) : <span className={`text-sm font-semibold ${summary.acceptedRisk ? 'text-amber-800' : 'text-emerald-700'}`}>{summary.acceptedRisk ? 'Ready with accepted risk' : 'Ready'}</span>}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
 
     return (
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-2xl font-semibold text-slate-900">Launch attention</h2>
-            <p className="text-sm text-slate-500 mt-1">The next work needed to get every study ready on time.</p>
+            <h2 className="text-2xl font-semibold text-slate-900">{ministryYearLabel} launch readiness</h2>
+            <p className="text-sm text-slate-500 mt-1">One ministry-year view of every pre-launch checkpoint. Open any cell to update the study.</p>
           </div>
           <div className="grid grid-cols-4 border border-slate-200 rounded-lg bg-white overflow-hidden min-w-[360px]">
             <div className="px-4 py-3 border-r border-slate-200"><div className="text-xl font-semibold text-red-700">{blocked}</div><div className="text-[10px] uppercase font-semibold text-slate-500">Blocked</div></div>
@@ -513,42 +622,24 @@ const App = () => {
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-          <div className="hidden lg:grid grid-cols-[minmax(220px,1.4fr)_110px_110px_minmax(260px,1.6fr)_90px] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-semibold text-slate-500">
-            <span>Study</span><span>Readiness</span><span>Attention</span><span>Next checkpoint</span><span></span>
-          </div>
-          {rows.length === 0 ? (
-            <div className="px-6 py-16 text-center text-slate-500">No current or upcoming studies need a launch checklist.</div>
-          ) : rows.map(({ study, summary }) => {
-            const ministry = MINISTRIES[study.ministryId.toUpperCase()] || MINISTRIES.MENS;
-            const nextDue = effectiveDueDate(summary.nextCheckpoint || {});
-            const nextAttention = getCheckpointAttentionDate(summary.nextCheckpoint || {});
-            return (
-              <div key={study.id} className="grid lg:grid-cols-[minmax(220px,1.4fr)_110px_110px_minmax(260px,1.6fr)_90px] gap-3 lg:gap-4 items-center px-5 py-4 border-b border-slate-100 last:border-b-0">
-                <div className="min-w-0">
-                  <div className="font-semibold text-slate-900 truncate">{study.title}</div>
-                  <div className="text-xs text-slate-500 mt-1">{ministry.name} · {study.startDate}</div>
-                </div>
-                {summary.enabled ? (
-                  <>
-                    <div>
-                      <div className="flex items-center justify-between text-xs font-semibold text-slate-700 mb-1"><span>{summary.readinessPercent}%</span><span>{summary.complete}/{summary.total}</span></div>
-                      <div className="h-1.5 bg-slate-100 rounded overflow-hidden"><div className="h-full bg-teal-600" style={{ width: `${summary.readinessPercent}%` }} /></div>
-                    </div>
-                    <div className="text-xs font-semibold">
-                      {summary.blocked > 0 ? <span className="text-red-700">{summary.blocked} blocked</span> : summary.missingOwner > 0 ? <span className="text-red-700">{summary.missingOwner} unassigned</span> : summary.missingCompletionDetails > 0 ? <span className="text-amber-800">Decision details missing</span> : summary.overdue > 0 ? <span className="text-amber-800">{summary.overdue} overdue</span> : summary.attentionNow > 0 ? <span className="text-blue-700">Start now</span> : summary.acceptedRisk > 0 ? <span className="text-amber-800">Accepted risk</span> : summary.ready ? <span className="text-teal-700">Ready</span> : <span className="text-teal-700">On track</span>}
-                    </div>
-                    <div className="min-w-0">
-                      {summary.nextCheckpoint ? <><div className="text-sm font-medium text-slate-800 truncate">{summary.nextCheckpoint.title}</div><div className="text-xs text-slate-500 mt-1">Start {nextAttention || 'date not set'} · Target {nextDue || 'date not set'} · {LAUNCH_STATUS_LABELS[summary.nextCheckpoint.status]}</div></> : <span className={`text-sm font-medium ${summary.acceptedRisk ? 'text-amber-800' : 'text-teal-700'}`}>{summary.acceptedRisk ? 'Ready with accepted risk' : 'Ready'}</span>}
-                    </div>
-                  </>
-                ) : (
-                  <div className="lg:col-span-3 text-sm text-slate-500">Launch checklist not set up.</div>
-                )}
-                <button type="button" onClick={() => handleOpenModal(study)} className="justify-self-start lg:justify-self-end px-3 py-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-700 hover:bg-slate-50">{summary.enabled ? 'Open' : 'Set up'}</button>
-              </div>
-            );
-          })}
+        <div className="space-y-5">
+          <section className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200">
+              <h3 className="font-semibold text-slate-900">Next studies</h3>
+              <p className="mt-1 text-xs text-slate-500">The earliest upcoming study in each ministry and site stream.</p>
+            </div>
+            <ReadinessTable rows={nextRows} emptyMessage="No upcoming studies are scheduled in this ministry year." />
+          </section>
+
+          <section className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200">
+              <h3 className="font-semibold text-slate-900">Later this ministry year</h3>
+              <p className="mt-1 text-xs text-slate-500">Remaining studies after each stream&rsquo;s next launch.</p>
+            </div>
+            <ReadinessTable rows={laterRows} emptyMessage="No later studies are scheduled yet." />
+          </section>
+
+          <p className="text-xs text-slate-500">After-launch operational checks remain in each study&rsquo;s checklist and are intentionally separate from this pre-launch grid.</p>
         </div>
       </div>
     );
@@ -1905,8 +1996,8 @@ const App = () => {
 
                     <div className="border border-slate-200 rounded-lg p-4">
                       <div className="font-semibold text-slate-900">Broad communication channels</div>
-                      <p className="text-xs text-slate-500 mt-1">Public information, leader communication, and targeted invitation are always included. Select only the additional broad channels approved for this study.</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+                      <p className="text-xs text-slate-500 mt-1">The Planning Center path, venue/AV check, and final leader-ready notification are core. Select only additional social-media or service-announcement support.</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                         {COMMUNICATION_PROFILE_IDS.map((profile) => (
                           <label key={profile} className="flex items-center gap-2 text-sm font-medium text-slate-700">
                             <input type="checkbox" checked={formData.launchPlan.profiles.includes(profile)} onChange={(e) => updateLaunchProfile(profile, e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-teal-700 focus:ring-teal-500" />

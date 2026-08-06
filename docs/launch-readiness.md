@@ -7,13 +7,13 @@ Launch readiness turns the post-decision SOP into dated work on each study while
 - Open a study and choose **Create checklist** under Launch Readiness.
 - Confirm the Planning Center page mode. `Information only` is the current study default.
 - Confirm who is producing the page. `Hand off to Director of Admin` is the current default.
-- Select only the applicable workflow sections. Public information, leader acknowledgement, and a targeted invitation plan are core; Compass News, social media, and service-announcement graphics are additional channels chosen for the study.
+- Select only the applicable workflow sections. The Planning Center path, venue/AV readiness, and final leader-ready notification are core. Social media and service-announcement graphics are optional study-level channels.
 - Treat a kickoff event as a separate linked event rather than a checkbox inside the study launch.
 - When physical resources are used, set the actual distribution date so delivery readiness is calculated from the correct dependency.
 - Review calculated dates and override an individual checkpoint only when ministry reality requires it.
 - Record status, owner, next action, blocker, working notes, and completion evidence as work progresses.
-- Use Working notes for evolving content such as master and tailored briefs, supplier communication, decisions, and stage-specific context. Keep Evidence or link for concise completion proof.
-- Use the **Launch** view to work from blocked, overdue, and next-due items across studies.
+- Use Working notes for evolving content such as the Planning Center master blurb, supplier communication, decisions, and stage-specific context. Keep Evidence or link for concise completion proof.
+- Use the **Launch** view as a ministry-year readiness grid. **Next studies** shows the earliest upcoming launch in each ministry/site stream; **Later this ministry year** holds the remaining future studies.
 
 Changing the study start date, duration, resource type, public launch date, resource distribution date, communication-channel selection, or production path recalculates the applicable checklist while preserving checkpoint progress.
 
@@ -33,16 +33,27 @@ An information-only page still requires accurate publication and live verificati
 
 When Jonathan builds or materially corrects the page, the generated **Independent proof obtained** checkpoint must be completed. It does not appear on the Director of Admin handoff path.
 
-Optional or required signup adds two gates before readiness:
-
-- verify the Planning Center Registrations settings: `Compass Office` support contact, phone number marked as a required registrant field, the current responsibility-based confirmation subscribers, and an appropriate onsite or privacy-safe offsite confirmation message; and
-- test the full signup and confirmation flow, including subscriber delivery.
+Optional or required signup adds one combined **Registration configured and tested** gate. It covers the `Compass Office` support contact, phone number marked as a required registrant field, current responsibility-based confirmation subscribers, an appropriate onsite or privacy-safe offsite confirmation message, participation/data-handling rules, late entry, and a full signup test including participant and subscriber delivery.
 
 Paid registration also adds payment, refund, discount, and Finance-handoff verification. Selecting no public page adds an explicit exception and alternative-information checkpoint.
 
-For Compass News, use a short event blurb when a specific event is included, or reference the approved generic men's/women's study blurb when that ministry-level item covers the study. An individual Compass News blurb is not required for every study.
+Compass News is not tracked as an individual study checkpoint. A linked event or kickoff may require an event blurb, while a generic men's or women's ministry-study blurb is handled at ministry level.
 
 For service announcements, verify that the appropriate approved Canva graphics—especially the widescreen pre-roll asset—are complete and send the shared asset link to the current service-announcement owner. The Planning Center master blurb supplies the source copy; do not create a separate announcement script unless the owner requests one.
+
+After every applicable readiness endpoint is complete, send leaders a concise launch-ready notification containing the live page, confirmed dates/location, resource status, participant-contact responsibility, and support route. A reply is required only when readiness genuinely depends on it.
+
+## Grid symbols
+
+- Green check: done.
+- Amber half-circle: in progress.
+- Blue clock: waiting on owner.
+- Hollow grey circle: not started.
+- Red exclamation: blocked or overdue.
+- Grey dash: not required for the study, or explicitly recorded as not required.
+- Amber warning: accepted risk.
+
+The grid intentionally excludes after-launch checkpoints; those remain grouped separately in each study.
 
 ## Follow-up rhythm
 

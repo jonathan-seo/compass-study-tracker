@@ -90,7 +90,9 @@ The optional embedded `launchPlan` keeps existing studies backward compatible. A
 
 The current ministry-study default is `information_only`; it does not create signup or payment requirements. The default production path is `admin_handoff`. Choosing `jonathan_self_service` adds the conditional independent-proof checkpoint.
 
-Every plan includes the public-information path or exception, leader communication, and targeted invitation plan. Compass News, social media, and service-announcement graphics are selected per study. Optional/required signup adds Planning Center registration-configuration—including a required registrant phone number—and end-to-end signup checks; paid registration and no-public-page modes add their own conditional checkpoints.
+Version 7 plans use a streamlined checkpoint contract. Every plan includes the public-information path or documented exception, venue/host/AV readiness, and a final launch-ready notification to leaders. Social media and service-announcement graphics are selected per study. Compass News and routine targeted invitations are outside the standard individual-study checklist. Optional/required signup adds one combined Planning Center registration configuration and end-to-end test—including a required registrant phone number; paid registration and no-public-page modes add their own conditional checkpoints.
+
+Opening or recalculating an older plan upgrades it without discarding its working notes or evidence. The former Planning Center configuration and signup-test checkpoints merge safely: the new checkpoint is complete only when both legacy parts were complete. The former leader-acknowledgement status does not auto-complete the new final launch-ready notification.
 
 The app creates and recalculates plans. The API validates a complete nested `launchPlan` when Second Brain later previews or applies one.
 

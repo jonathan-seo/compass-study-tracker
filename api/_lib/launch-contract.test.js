@@ -5,6 +5,7 @@ import {
   createLaunchPlan,
   getCheckpointAttentionDate,
   getDefaultMinistryYearStart,
+  getLaunchGridSections,
   getLaunchSummary,
   getStudyEndDate,
   isStudyPast,
@@ -12,6 +13,7 @@ import {
 } from './launch-contract.js';
 
 const orangevilleMonday = {
+  id: 'orangeville-one',
   title: 'Luke: Gut-Level Compassion',
   ministryId: 'womens_mon',
   startDate: '2026-09-21',
@@ -21,10 +23,10 @@ const orangevilleMonday = {
   digitalResources: 'Required',
 };
 
-test('creates the streamlined study launch plan with inferred resource profiles', () => {
+test('creates the streamlined version-7 launch plan with inferred resource profiles', () => {
   const launchPlan = createLaunchPlan(orangevilleMonday);
 
-  assert.equal(launchPlan.version, 6);
+  assert.equal(launchPlan.version, 7);
   assert.equal(launchPlan.pageMode, 'information_only');
   assert.equal(launchPlan.productionPath, 'admin_handoff');
   assert.equal(launchPlan.publicLaunchDate, '2026-08-10');
@@ -34,34 +36,30 @@ test('creates the streamlined study launch plan with inferred resource profiles'
     'physical_resource',
     'digital_streaming',
   ]);
+  assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'planning_center_copy_ready'), true);
   assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'physical_resource_received'), true);
   assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'digital_access_tested'), true);
+  assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'leaders_notified_launch_ready'), true);
   assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'planning_center_independent_proof'), false);
-  assert.equal(launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'master_brief_ready').taskPolicy, 'create');
-  assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'social_media_copy_ready'), false);
-  assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'targeted_invitation_plan_ready'), true);
-  assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'early_operational_check'), true);
+  assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'facts_locked'), false);
+  assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'master_brief_ready'), false);
+  assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'targeted_invitation_plan_ready'), false);
+  assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'promotion_submitted'), false);
   assert.equal(launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'planning_center_page_live').taskPolicy, 'monitor');
-  assert.equal('kickoffDate' in launchPlan, false);
-  assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'final_readiness_complete'), false);
-  assert.deepEqual(
-    ['planning_center_copy_ready', 'leader_email_copy_ready', 'targeted_invitation_plan_ready']
-      .filter((id) => launchPlan.checkpoints.some((checkpoint) => checkpoint.id === id)),
-    ['planning_center_copy_ready', 'leader_email_copy_ready', 'targeted_invitation_plan_ready'],
-  );
 });
 
-test('adds only the broad communication channels selected for the study', () => {
+test('adds only selected study-level communication channels', () => {
   const launchPlan = createLaunchPlan(orangevilleMonday, {
-    profiles: ['universal_core', 'planning_center_information_page', 'compass_news', 'sunday_slide'],
+    profiles: ['universal_core', 'planning_center_information_page', 'compass_news', 'social_media', 'sunday_slide'],
   });
 
-  assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'compass_news_copy_ready'), true);
+  assert.equal(launchPlan.profiles.includes('compass_news'), false);
+  assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'compass_news_copy_ready'), false);
+  assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'social_media_copy_ready'), true);
   assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'sunday_slide_brief_ready'), true);
-  assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'social_media_copy_ready'), false);
-  assert.deepEqual(
-    launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'promotion_submitted').dependsOn,
-    ['leader_email_copy_ready', 'targeted_invitation_plan_ready', 'planning_center_copy_ready', 'compass_news_copy_ready', 'sunday_slide_brief_ready'],
+  assert.match(
+    launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'sunday_slide_brief_ready').description,
+    /widescreen pre-roll/i,
   );
 });
 
@@ -85,95 +83,147 @@ test('adds the independent-proof checkpoint only for Jonathan self-service', () 
   assert.equal(proof.calculatedDueDate, '2026-08-09');
   assert.equal(page.owner, 'Jonathan');
   assert.equal(page.taskPolicy, 'create');
+  assert.deepEqual(page.dependsOn, ['planning_center_copy_ready', 'planning_center_independent_proof']);
 });
 
 test('calculates a business-day attention date separately from the target date', () => {
   const launchPlan = createLaunchPlan(orangevilleMonday);
-  const masterBrief = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'master_brief_ready');
+  const masterBlurb = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'planning_center_copy_ready');
 
-  assert.equal(masterBrief.calculatedDueDate, '2026-08-03');
-  assert.equal(getCheckpointAttentionDate(masterBrief), '2026-07-27');
+  assert.equal(masterBlurb.calculatedDueDate, '2026-08-10');
+  assert.equal(getCheckpointAttentionDate(masterBlurb), '2026-08-03');
 
-  masterBrief.dueDateOverride = '2026-07-27';
-  assert.equal(getCheckpointAttentionDate(masterBrief), '2026-07-20');
+  masterBlurb.dueDateOverride = '2026-07-27';
+  assert.equal(getCheckpointAttentionDate(masterBlurb), '2026-07-20');
 });
 
 test('updates the automatic Planning Center owner when the production path changes', () => {
   const adminPlan = createLaunchPlan(orangevilleMonday);
-  const selfServicePlan = createLaunchPlan(orangevilleMonday, {
-    ...adminPlan,
-    productionPath: 'jonathan_self_service',
-  });
+  const selfServicePlan = createLaunchPlan(orangevilleMonday, { ...adminPlan, productionPath: 'jonathan_self_service' });
   const selfServicePage = selfServicePlan.checkpoints.find((checkpoint) => checkpoint.id === 'planning_center_page_live');
-
   assert.equal(selfServicePage.owner, 'Jonathan');
 
   selfServicePage.owner = 'Sarah';
   const customOwnerPlan = createLaunchPlan(orangevilleMonday, selfServicePlan);
-  const customOwnerPage = customOwnerPlan.checkpoints.find((checkpoint) => checkpoint.id === 'planning_center_page_live');
-
-  assert.equal(customOwnerPage.owner, 'Sarah');
+  assert.equal(customOwnerPlan.checkpoints.find((checkpoint) => checkpoint.id === 'planning_center_page_live').owner, 'Sarah');
 });
 
-test('removes the Planning Center profile when a public page is not required', () => {
+test('uses the no-public-page exception when a public page is not required', () => {
   const plan = createLaunchPlan(orangevilleMonday, {
     pageMode: 'not_required',
     profiles: ['universal_core', 'planning_center_information_page'],
   });
 
-  assert.equal(plan.pageMode, 'not_required');
   assert.equal(plan.profiles.includes('planning_center_information_page'), false);
   assert.equal(plan.checkpoints.some((checkpoint) => checkpoint.id === 'planning_center_page_live'), false);
   assert.equal(plan.checkpoints.some((checkpoint) => checkpoint.id === 'public_information_exception_confirmed'), true);
+  assert.deepEqual(
+    plan.checkpoints.find((checkpoint) => checkpoint.id === 'leaders_notified_launch_ready').dependsOn,
+    ['public_information_exception_confirmed', 'venue_host_av_ready'],
+  );
 });
 
-test('adds signup and payment checks only for the selected Planning Center mode', () => {
+test('combines signup configuration and end-to-end testing, with payment conditional', () => {
   const optional = createLaunchPlan(orangevilleMonday, { pageMode: 'optional_signup' });
   const paid = createLaunchPlan(orangevilleMonday, { pageMode: 'paid_registration' });
+  const registration = optional.checkpoints.find((checkpoint) => checkpoint.id === 'planning_center_registration_settings_verified');
 
-  assert.equal(optional.checkpoints.some((checkpoint) => checkpoint.id === 'planning_center_registration_settings_verified'), true);
-  assert.match(
-    optional.checkpoints.find((checkpoint) => checkpoint.id === 'planning_center_registration_settings_verified').description,
-    /phone-number field is required/i,
-  );
-  assert.equal(optional.checkpoints.some((checkpoint) => checkpoint.id === 'signup_flow_verified'), true);
+  assert.equal(Boolean(registration), true);
+  assert.match(registration.description, /required phone number/i);
+  assert.match(registration.description, /tested end to end/i);
+  assert.equal(optional.checkpoints.some((checkpoint) => checkpoint.id === 'signup_flow_verified'), false);
   assert.equal(optional.checkpoints.some((checkpoint) => checkpoint.id === 'payment_flow_verified'), false);
-  assert.equal(paid.checkpoints.some((checkpoint) => checkpoint.id === 'signup_flow_verified'), true);
   assert.equal(paid.checkpoints.some((checkpoint) => checkpoint.id === 'payment_flow_verified'), true);
-  assert.deepEqual(
-    optional.checkpoints.find((checkpoint) => checkpoint.id === 'signup_flow_verified').dependsOn,
-    ['planning_center_registration_settings_verified'],
-  );
 });
 
-test('uses the source-owner-confirmed communication handoffs', () => {
+test('makes final leader notification depend on every applicable readiness endpoint', () => {
   const launchPlan = createLaunchPlan(orangevilleMonday, {
-    profiles: ['universal_core', 'planning_center_information_page', 'compass_news', 'sunday_slide'],
+    pageMode: 'paid_registration',
+    profiles: ['universal_core', 'planning_center_information_page', 'physical_resource', 'digital_streaming', 'social_media', 'sunday_slide'],
   });
+  const notification = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'leaders_notified_launch_ready');
 
-  const compassNews = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'compass_news_copy_ready');
-  const serviceGraphics = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'sunday_slide_brief_ready');
-
-  assert.match(compassNews.description, /generic ministry-study blurb/i);
-  assert.match(serviceGraphics.description, /widescreen pre-roll/i);
-  assert.match(serviceGraphics.description, /separate announcement script is not required/i);
+  assert.deepEqual(notification.dependsOn, [
+    'planning_center_page_live',
+    'planning_center_registration_settings_verified',
+    'payment_flow_verified',
+    'physical_resource_received',
+    'digital_access_tested',
+    'social_media_copy_ready',
+    'sunday_slide_brief_ready',
+    'venue_host_av_ready',
+  ]);
 });
 
-test('preserves checkpoint progress while recalculating dates', () => {
+test('preserves progress while recalculating dates', () => {
   const first = createLaunchPlan(orangevilleMonday);
   const ordered = first.checkpoints.find((checkpoint) => checkpoint.id === 'physical_resource_ordered');
   ordered.status = 'done';
-  ordered.notes = 'Supplier confirmed the order by email. Keep the delivery thread here.';
-  ordered.evidence = 'Ekkuip order placed';
+  ordered.notes = 'Supplier confirmed the order by email.';
+  ordered.evidence = 'Order placed';
   ordered.completedAt = '2026-07-14';
 
   const revised = createLaunchPlan({ ...orangevilleMonday, startDate: '2026-09-28' }, first);
   const preserved = revised.checkpoints.find((checkpoint) => checkpoint.id === 'physical_resource_ordered');
 
   assert.equal(preserved.status, 'done');
-  assert.equal(preserved.notes, 'Supplier confirmed the order by email. Keep the delivery thread here.');
-  assert.equal(preserved.evidence, 'Ekkuip order placed');
+  assert.equal(preserved.notes, ordered.notes);
+  assert.equal(preserved.evidence, ordered.evidence);
   assert.equal(preserved.calculatedDueDate, '2026-08-17');
+});
+
+test('migrates version-6 progress without falsely completing combined or final checkpoints', () => {
+  const versionSix = {
+    version: 6,
+    profiles: ['universal_core', 'planning_center_information_page'],
+    pageMode: 'required_signup',
+    productionPath: 'admin_handoff',
+    checkpoints: [
+      { id: 'planning_center_copy_ready', status: 'done', evidence: 'Live copy approved.' },
+      { id: 'planning_center_registration_settings_verified', status: 'done', notes: 'Settings complete.' },
+      { id: 'signup_flow_verified', status: 'in_progress', notes: 'Subscriber delivery still to test.' },
+      { id: 'leader_communication_confirmed', status: 'done', evidence: 'Old acknowledgement received.' },
+    ],
+  };
+  const migrated = createLaunchPlan(orangevilleMonday, versionSix);
+  const ids = migrated.checkpoints.map((checkpoint) => checkpoint.id);
+  const registration = migrated.checkpoints.find((checkpoint) => checkpoint.id === 'planning_center_registration_settings_verified');
+  const leaders = migrated.checkpoints.find((checkpoint) => checkpoint.id === 'leaders_notified_launch_ready');
+
+  assert.equal(migrated.version, 7);
+  assert.equal(ids.includes('signup_flow_verified'), false);
+  assert.equal(ids.includes('leader_communication_confirmed'), false);
+  assert.equal(registration.status, 'in_progress');
+  assert.match(registration.notes, /Settings complete/);
+  assert.match(registration.notes, /Subscriber delivery still to test/);
+  assert.equal(leaders.status, 'not_started');
+  assert.equal(leaders.completedAt, '');
+});
+
+test('marks the combined registration checkpoint done only when both legacy parts were complete', () => {
+  const migrated = createLaunchPlan(orangevilleMonday, {
+    version: 6,
+    pageMode: 'optional_signup',
+    productionPath: 'admin_handoff',
+    checkpoints: [
+      { id: 'planning_center_registration_settings_verified', status: 'done' },
+      { id: 'signup_flow_verified', status: 'done', completedAt: '2026-08-04' },
+    ],
+  });
+  const registration = migrated.checkpoints.find((checkpoint) => checkpoint.id === 'planning_center_registration_settings_verified');
+  assert.equal(registration.status, 'done');
+  assert.equal(registration.completedAt, '2026-08-04');
+});
+
+test('splits the ministry-year grid into the next study per stream and later studies', () => {
+  const shelburne = { ...orangevilleMonday, id: 'shel-one', ministryId: 'womens_shel', location: 'Shelburne', startDate: '2026-09-15' };
+  const orangevilleLater = { ...orangevilleMonday, id: 'orange-two', title: 'Winter study', startDate: '2027-01-11' };
+  const outsideYear = { ...orangevilleMonday, id: 'outside', startDate: '2027-09-20' };
+  const sections = getLaunchGridSections([orangevilleLater, outsideYear, orangevilleMonday, shelburne], '2026-08-06');
+
+  assert.equal(sections.ministryYearLabel, '2026-2027');
+  assert.deepEqual(sections.nextStudies.map((study) => study.id), ['shel-one', 'orangeville-one']);
+  assert.deepEqual(sections.laterStudies.map((study) => study.id), ['orange-two']);
 });
 
 test('summarizes overdue, blocked, and completion state', () => {
@@ -181,24 +231,19 @@ test('summarizes overdue, blocked, and completion state', () => {
   launchPlan.checkpoints[0].status = 'done';
   launchPlan.checkpoints[1].status = 'blocked';
   launchPlan.checkpoints[1].blocker = 'Waiting on dates';
-
-  const summary = getLaunchSummary({ ...orangevilleMonday, launchPlan }, '2026-08-04');
+  const summary = getLaunchSummary({ ...orangevilleMonday, launchPlan }, '2026-08-11');
 
   assert.equal(summary.complete, 1);
   assert.equal(summary.blocked, 1);
   assert.equal(summary.overdue > 0, true);
-  assert.equal(summary.nextCheckpoint.id, 'master_brief_ready');
-  assert.equal(summary.attentionNow > 0, true);
+  assert.equal(Boolean(summary.nextCheckpoint), true);
 });
 
 test('identifies past studies from an explicit or calculated end date', () => {
   assert.equal(getStudyEndDate(orangevilleMonday), '2026-11-16');
   assert.equal(isStudyPast(orangevilleMonday, '2026-11-17'), true);
   assert.equal(isStudyPast(orangevilleMonday, '2026-11-16'), false);
-  assert.equal(isStudyPast({
-    ...orangevilleMonday,
-    launchPlan: { studyEndDate: '2026-10-30' },
-  }, '2026-10-31'), true);
+  assert.equal(isStudyPast({ ...orangevilleMonday, launchPlan: { studyEndDate: '2026-10-30' } }, '2026-10-31'), true);
 });
 
 test('defaults the calendar to the earliest active or upcoming ministry year', () => {
@@ -210,88 +255,74 @@ test('defaults the calendar to the earliest active or upcoming ministry year', (
   assert.equal(getDefaultMinistryYearStart([], '2026-02-16'), 2025);
 });
 
-test('calculates readiness without post-launch follow-up or a manual final checkbox', () => {
+test('calculates readiness without post-launch follow-up checkpoints', () => {
   const launchPlan = createLaunchPlan(orangevilleMonday);
   launchPlan.checkpoints.forEach((checkpoint) => {
     checkpoint.status = checkpoint.affectsReadiness === false ? 'blocked' : 'done';
   });
-  const acceptedRisk = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'venue_host_av_ready');
-  acceptedRisk.status = 'accepted_risk';
-  acceptedRisk.acceptedRiskOwner = 'Jonathan';
-  acceptedRisk.acceptedRiskMitigation = 'Confirm the remaining signage on arrival.';
-  acceptedRisk.acceptedRiskReviewDate = '2026-09-21';
+  const venue = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'venue_host_av_ready');
+  venue.status = 'accepted_risk';
+  venue.acceptedRiskOwner = 'Jonathan';
+  venue.acceptedRiskMitigation = 'Confirm the remaining signage on arrival.';
+  venue.acceptedRiskReviewDate = '2026-09-21';
 
   const summary = getLaunchSummary({ ...orangevilleMonday, launchPlan }, '2026-09-20');
-
   assert.equal(summary.ready, true);
   assert.equal(summary.readinessPercent, 100);
   assert.equal(summary.acceptedRisk, 1);
-  assert.equal(summary.blocked, 0);
 });
 
-test('does not count not-required or accepted-risk checkpoints without decision details as complete', () => {
+test('requires decision details for not-required and accepted-risk completion', () => {
   const launchPlan = createLaunchPlan(orangevilleMonday);
-  const targeted = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'targeted_invitation_plan_ready');
+  const digital = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'digital_access_tested');
   const venue = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'venue_host_av_ready');
-  targeted.status = 'not_required';
+  digital.status = 'not_required';
   venue.status = 'accepted_risk';
 
   let summary = getLaunchSummary({ ...orangevilleMonday, launchPlan }, '2026-08-01');
   assert.equal(summary.missingCompletionDetails, 2);
 
-  targeted.notRequiredReason = 'Confirmed by the ministry owner: invitations are being handled through the linked kickoff event.';
+  digital.notRequiredReason = 'The approved study has no digital component.';
   venue.acceptedRiskOwner = 'Jonathan';
-  venue.acceptedRiskMitigation = 'Use the portable speaker if the installed system is unavailable.';
+  venue.acceptedRiskMitigation = 'Use the portable speaker if needed.';
   venue.acceptedRiskReviewDate = '2026-09-21';
   summary = getLaunchSummary({ ...orangevilleMonday, launchPlan }, '2026-08-01');
   assert.equal(summary.missingCompletionDetails, 0);
 });
 
-test('sanitizes nested launch data and rejects invalid checkpoint status', () => {
-  const launchPlan = createLaunchPlan(orangevilleMonday);
-  launchPlan.checkpoints[0].status = 'mystery';
-
-  const result = sanitizeLaunchPlan(launchPlan);
-
-  assert.equal(result.errors.some((error) => error.includes('Invalid launchPlan.checkpoints[0].status')), true);
-  assert.equal(result.launchPlan.checkpoints[0].status, 'not_started');
-});
-
-test('sanitization preserves communication profiles represented by legacy checkpoints', () => {
+test('sanitizes nested launch data and preserves legacy profile inference', () => {
   const launchPlan = createLaunchPlan(orangevilleMonday, {
     profiles: ['universal_core', 'planning_center_information_page', 'social_media'],
   });
   launchPlan.version = 3;
   launchPlan.profiles = ['universal_core', 'planning_center_information_page'];
-
+  launchPlan.checkpoints[0].status = 'mystery';
   const result = sanitizeLaunchPlan(launchPlan);
 
-  assert.equal(result.launchPlan.version, 6);
+  assert.equal(result.errors.some((error) => error.includes('Invalid launchPlan.checkpoints[0].status')), true);
+  assert.equal(result.launchPlan.checkpoints[0].status, 'not_started');
+  assert.equal(result.launchPlan.version, 7);
   assert.equal(result.launchPlan.profiles.includes('social_media'), true);
 });
 
 test('sanitizes checkpoint working notes independently from completion evidence', () => {
   const launchPlan = createLaunchPlan(orangevilleMonday);
-  const masterBrief = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'master_brief_ready');
-  masterBrief.notes = 'Master brief draft with audience, message, dates, and calls to action.';
-  masterBrief.evidence = 'Approved by Jonathan on 2026-07-18.';
+  const masterBlurb = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'planning_center_copy_ready');
+  masterBlurb.notes = 'Master blurb draft with audience, dates, location, resources, and next step.';
+  masterBlurb.evidence = 'Approved by Jonathan on 2026-07-18.';
 
   const result = sanitizeLaunchPlan(launchPlan);
-  const sanitized = result.launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'master_brief_ready');
+  const sanitized = result.launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'planning_center_copy_ready');
 
   assert.deepEqual(result.errors, []);
-  assert.equal(sanitized.notes, masterBrief.notes);
-  assert.equal(sanitized.evidence, masterBrief.evidence);
+  assert.equal(sanitized.notes, masterBlurb.notes);
+  assert.equal(sanitized.evidence, masterBlurb.evidence);
 });
 
-test('prevents communication submission from completing before selected outputs and core communication', () => {
-  const launchPlan = createLaunchPlan(orangevilleMonday, {
-    profiles: ['universal_core', 'planning_center_information_page', 'compass_news'],
-  });
-  const promotion = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'promotion_submitted');
-  promotion.status = 'done';
-
+test('prevents final leader notification before readiness dependencies are complete', () => {
+  const launchPlan = createLaunchPlan(orangevilleMonday);
+  launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'leaders_notified_launch_ready').status = 'done';
   const result = sanitizeLaunchPlan(launchPlan);
 
-  assert.equal(result.errors.some((error) => error.includes('promotion_submitted cannot be done before')), true);
+  assert.equal(result.errors.some((error) => error.includes('leaders_notified_launch_ready cannot be done before')), true);
 });
