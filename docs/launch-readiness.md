@@ -35,7 +35,7 @@ When Jonathan builds or materially corrects the page, the generated **Independen
 
 Optional or required signup adds two gates before readiness:
 
-- verify the Planning Center Registrations settings: `Compass Office` support contact, the current responsibility-based confirmation subscribers, and an appropriate onsite or privacy-safe offsite confirmation message; and
+- verify the Planning Center Registrations settings: `Compass Office` support contact, phone number marked as a required registrant field, the current responsibility-based confirmation subscribers, and an appropriate onsite or privacy-safe offsite confirmation message; and
 - test the full signup and confirmation flow, including subscriber delivery.
 
 Paid registration also adds payment, refund, discount, and Finance-handoff verification. Selecting no public page adds an explicit exception and alternative-information checkpoint.

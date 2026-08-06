@@ -1,4 +1,4 @@
-export const LAUNCH_PLAN_VERSION = 5;
+export const LAUNCH_PLAN_VERSION = 6;
 
 export const LAUNCH_STATUSES = [
   'not_started',
@@ -149,7 +149,7 @@ export const LAUNCH_CHECKPOINT_TEMPLATES = [
   {
     id: 'planning_center_registration_settings_verified',
     title: 'Planning Center registration settings verified',
-    description: 'Compass Office is selected as support contact, current signup-confirmation subscribers are selected by responsibility, and an onsite or privacy-safe offsite confirmation message is configured.',
+    description: 'Compass Office is selected as support contact, the registrant phone-number field is required, current signup-confirmation subscribers are selected by responsibility, and an onsite or privacy-safe offsite confirmation message is configured.',
     profile: 'planning_center_information_page',
     anchor: 'public_launch_date',
     offsetDays: 0,

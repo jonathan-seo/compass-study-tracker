@@ -24,7 +24,7 @@ const orangevilleMonday = {
 test('creates the streamlined study launch plan with inferred resource profiles', () => {
   const launchPlan = createLaunchPlan(orangevilleMonday);
 
-  assert.equal(launchPlan.version, 5);
+  assert.equal(launchPlan.version, 6);
   assert.equal(launchPlan.pageMode, 'information_only');
   assert.equal(launchPlan.productionPath, 'admin_handoff');
   assert.equal(launchPlan.publicLaunchDate, '2026-08-10');
@@ -132,6 +132,10 @@ test('adds signup and payment checks only for the selected Planning Center mode'
   const paid = createLaunchPlan(orangevilleMonday, { pageMode: 'paid_registration' });
 
   assert.equal(optional.checkpoints.some((checkpoint) => checkpoint.id === 'planning_center_registration_settings_verified'), true);
+  assert.match(
+    optional.checkpoints.find((checkpoint) => checkpoint.id === 'planning_center_registration_settings_verified').description,
+    /phone-number field is required/i,
+  );
   assert.equal(optional.checkpoints.some((checkpoint) => checkpoint.id === 'signup_flow_verified'), true);
   assert.equal(optional.checkpoints.some((checkpoint) => checkpoint.id === 'payment_flow_verified'), false);
   assert.equal(paid.checkpoints.some((checkpoint) => checkpoint.id === 'signup_flow_verified'), true);
@@ -262,7 +266,7 @@ test('sanitization preserves communication profiles represented by legacy checkp
 
   const result = sanitizeLaunchPlan(launchPlan);
 
-  assert.equal(result.launchPlan.version, 5);
+  assert.equal(result.launchPlan.version, 6);
   assert.equal(result.launchPlan.profiles.includes('social_media'), true);
 });
 
