@@ -24,7 +24,7 @@ const orangevilleMonday = {
 test('creates the streamlined study launch plan with inferred resource profiles', () => {
   const launchPlan = createLaunchPlan(orangevilleMonday);
 
-  assert.equal(launchPlan.version, 4);
+  assert.equal(launchPlan.version, 5);
   assert.equal(launchPlan.pageMode, 'information_only');
   assert.equal(launchPlan.productionPath, 'admin_handoff');
   assert.equal(launchPlan.publicLaunchDate, '2026-08-10');
@@ -131,10 +131,28 @@ test('adds signup and payment checks only for the selected Planning Center mode'
   const optional = createLaunchPlan(orangevilleMonday, { pageMode: 'optional_signup' });
   const paid = createLaunchPlan(orangevilleMonday, { pageMode: 'paid_registration' });
 
+  assert.equal(optional.checkpoints.some((checkpoint) => checkpoint.id === 'planning_center_registration_settings_verified'), true);
   assert.equal(optional.checkpoints.some((checkpoint) => checkpoint.id === 'signup_flow_verified'), true);
   assert.equal(optional.checkpoints.some((checkpoint) => checkpoint.id === 'payment_flow_verified'), false);
   assert.equal(paid.checkpoints.some((checkpoint) => checkpoint.id === 'signup_flow_verified'), true);
   assert.equal(paid.checkpoints.some((checkpoint) => checkpoint.id === 'payment_flow_verified'), true);
+  assert.deepEqual(
+    optional.checkpoints.find((checkpoint) => checkpoint.id === 'signup_flow_verified').dependsOn,
+    ['planning_center_registration_settings_verified'],
+  );
+});
+
+test('uses the source-owner-confirmed communication handoffs', () => {
+  const launchPlan = createLaunchPlan(orangevilleMonday, {
+    profiles: ['universal_core', 'planning_center_information_page', 'compass_news', 'sunday_slide'],
+  });
+
+  const compassNews = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'compass_news_copy_ready');
+  const serviceGraphics = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'sunday_slide_brief_ready');
+
+  assert.match(compassNews.description, /generic ministry-study blurb/i);
+  assert.match(serviceGraphics.description, /widescreen pre-roll/i);
+  assert.match(serviceGraphics.description, /separate announcement script is not required/i);
 });
 
 test('preserves checkpoint progress while recalculating dates', () => {
@@ -244,7 +262,7 @@ test('sanitization preserves communication profiles represented by legacy checkp
 
   const result = sanitizeLaunchPlan(launchPlan);
 
-  assert.equal(result.launchPlan.version, 4);
+  assert.equal(result.launchPlan.version, 5);
   assert.equal(result.launchPlan.profiles.includes('social_media'), true);
 });
 

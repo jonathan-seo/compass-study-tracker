@@ -1,4 +1,4 @@
-export const LAUNCH_PLAN_VERSION = 4;
+export const LAUNCH_PLAN_VERSION = 5;
 
 export const LAUNCH_STATUSES = [
   'not_started',
@@ -40,9 +40,9 @@ export const LAUNCH_PROFILE_LABELS = {
   planning_center_information_page: 'Planning Center information page',
   physical_resource: 'Physical books or workbooks',
   digital_streaming: 'Digital or streamed material',
-  compass_news: 'Compass News',
+  compass_news: 'Compass News (event or ministry-level)',
   social_media: 'Social media',
-  sunday_slide: 'Sunday slide',
+  sunday_slide: 'Service announcement graphics',
   focus_group_companion: 'Focus Group companion requirements',
 };
 
@@ -77,8 +77,8 @@ export const LAUNCH_CHECKPOINT_TEMPLATES = [
   },
   {
     id: 'compass_news_copy_ready',
-    title: 'Compass News copy prepared',
-    description: 'The Compass News version has been derived from the approved master brief.',
+    title: 'Compass News handoff ready',
+    description: 'The applicable short event blurb or approved generic ministry-study blurb is ready. An individual blurb is not required for every study when the ministry-level item covers it.',
     profile: 'compass_news',
     anchor: 'first_study_session_date',
     offsetDays: -42,
@@ -97,8 +97,8 @@ export const LAUNCH_CHECKPOINT_TEMPLATES = [
   },
   {
     id: 'sunday_slide_brief_ready',
-    title: 'Sunday-slide brief prepared',
-    description: 'The standard Sunday-slide wording, dates, call to action, and destination are ready.',
+    title: 'Service announcement graphics handed off',
+    description: 'The appropriate approved Canva graphics, especially the widescreen pre-roll asset, are complete and their shared link has been sent to the current service-announcement owner. The Planning Center master blurb is the copy source; a separate announcement script is not required unless requested.',
     profile: 'sunday_slide',
     anchor: 'first_study_session_date',
     offsetDays: -42,
@@ -147,15 +147,26 @@ export const LAUNCH_CHECKPOINT_TEMPLATES = [
     dependsOn: ['planning_center_copy_ready'],
   },
   {
-    id: 'signup_flow_verified',
-    title: 'Signup flow and participation rules verified',
-    description: 'Capacity, questions, response timing or open enrollment, confirmation, participant-data handling, waitlist/count handoff, and late entry are confirmed and tested.',
+    id: 'planning_center_registration_settings_verified',
+    title: 'Planning Center registration settings verified',
+    description: 'Compass Office is selected as support contact, current signup-confirmation subscribers are selected by responsibility, and an onsite or privacy-safe offsite confirmation message is configured.',
     profile: 'planning_center_information_page',
     anchor: 'public_launch_date',
     offsetDays: 0,
     owner: 'Jonathan',
     condition: 'signup_enabled',
     dependsOn: ['planning_center_page_live'],
+  },
+  {
+    id: 'signup_flow_verified',
+    title: 'Signup flow and participation rules verified',
+    description: 'Capacity, questions, response timing or open enrollment, participant-data handling, waitlist/count handoff, late entry, subscriber delivery, and the participant confirmation experience are tested end to end.',
+    profile: 'planning_center_information_page',
+    anchor: 'public_launch_date',
+    offsetDays: 0,
+    owner: 'Jonathan',
+    condition: 'signup_enabled',
+    dependsOn: ['planning_center_registration_settings_verified'],
   },
   {
     id: 'payment_flow_verified',
@@ -300,6 +311,7 @@ const CHECKPOINT_TASK_RULES = {
   targeted_invitation_plan_ready: { attentionLeadBusinessDays: 5, taskPolicy: 'create' },
   planning_center_independent_proof: { attentionLeadBusinessDays: 2, taskPolicy: 'create' },
   planning_center_page_live: { attentionLeadBusinessDays: 5, taskPolicy: 'monitor' },
+  planning_center_registration_settings_verified: { attentionLeadBusinessDays: 2, taskPolicy: 'create' },
   signup_flow_verified: { attentionLeadBusinessDays: 2, taskPolicy: 'create' },
   payment_flow_verified: { attentionLeadBusinessDays: 2, taskPolicy: 'create' },
   public_information_exception_confirmed: { attentionLeadBusinessDays: 5, taskPolicy: 'create' },
