@@ -85,10 +85,12 @@ The optional embedded `launchPlan` keeps existing studies backward compatible. A
 
 - selected workflow profiles;
 - Planning Center page mode and production path;
-- public launch, kickoff, and study-end anchors;
+- public launch, first-session, resource-distribution, and study-end anchors; kickoff events are separate linked event launches;
 - generated checkpoints with owner, status, calculated date, override, next action, blocker, working notes, evidence, and completion date.
 
 The current ministry-study default is `information_only`; it does not create signup or payment requirements. The default production path is `admin_handoff`. Choosing `jonathan_self_service` adds the conditional independent-proof checkpoint.
+
+Every plan includes the public-information path or exception, leader communication, and targeted invitation plan. Compass News, social media, and Sunday slides are selected per study. Optional/required signup, paid registration, and no-public-page modes add their own conditional checkpoints.
 
 The app creates and recalculates plans. The API validates a complete nested `launchPlan` when Second Brain later previews or applies one.
 

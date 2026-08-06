@@ -41,6 +41,7 @@ const getMinistryYearForDate = (startDate) => {
 };
 
 import {
+  LAUNCH_PROFILE_LABELS,
   LAUNCH_STATUSES,
   PLANNING_CENTER_PAGE_MODES,
   PLANNING_CENTER_PRODUCTION_PATHS,
@@ -142,6 +143,8 @@ const PRODUCTION_PATH_LABELS = {
   jonathan_self_service: 'Jonathan builds or corrects',
   other_owner: 'Another owner',
 };
+
+const COMMUNICATION_PROFILE_IDS = ['compass_news', 'social_media', 'sunday_slide'];
 
 const emptyStudyForm = (stage = 'planning') => ({
   title: '',
@@ -289,6 +292,18 @@ const App = () => {
       return {
         ...current,
         launchPlan: recalculate ? createLaunchPlan(current, draft) : draft,
+      };
+    });
+  };
+
+  const updateLaunchProfile = (profile, enabled) => {
+    setFormData((current) => {
+      const profiles = enabled
+        ? [...new Set([...current.launchPlan.profiles, profile])]
+        : current.launchPlan.profiles.filter((item) => item !== profile);
+      return {
+        ...current,
+        launchPlan: createLaunchPlan(current, { ...current.launchPlan, profiles }),
       };
     });
   };
@@ -521,7 +536,7 @@ const App = () => {
                       <div className="h-1.5 bg-slate-100 rounded overflow-hidden"><div className="h-full bg-teal-600" style={{ width: `${summary.readinessPercent}%` }} /></div>
                     </div>
                     <div className="text-xs font-semibold">
-                      {summary.blocked > 0 ? <span className="text-red-700">{summary.blocked} blocked</span> : summary.overdue > 0 ? <span className="text-amber-800">{summary.overdue} overdue</span> : summary.attentionNow > 0 ? <span className="text-blue-700">Start now</span> : summary.acceptedRisk > 0 ? <span className="text-amber-800">Accepted risk</span> : summary.ready ? <span className="text-teal-700">Ready</span> : <span className="text-teal-700">On track</span>}
+                      {summary.blocked > 0 ? <span className="text-red-700">{summary.blocked} blocked</span> : summary.missingOwner > 0 ? <span className="text-red-700">{summary.missingOwner} unassigned</span> : summary.missingCompletionDetails > 0 ? <span className="text-amber-800">Decision details missing</span> : summary.overdue > 0 ? <span className="text-amber-800">{summary.overdue} overdue</span> : summary.attentionNow > 0 ? <span className="text-blue-700">Start now</span> : summary.acceptedRisk > 0 ? <span className="text-amber-800">Accepted risk</span> : summary.ready ? <span className="text-teal-700">Ready</span> : <span className="text-teal-700">On track</span>}
                     </div>
                     <div className="min-w-0">
                       {summary.nextCheckpoint ? <><div className="text-sm font-medium text-slate-800 truncate">{summary.nextCheckpoint.title}</div><div className="text-xs text-slate-500 mt-1">Start {nextAttention || 'date not set'} · Target {nextDue || 'date not set'} · {LAUNCH_STATUS_LABELS[summary.nextCheckpoint.status]}</div></> : <span className={`text-sm font-medium ${summary.acceptedRisk ? 'text-amber-800' : 'text-teal-700'}`}>{summary.acceptedRisk ? 'Ready with accepted risk' : 'Ready'}</span>}
@@ -1880,6 +1895,27 @@ const App = () => {
                       </div>
                     </div>
 
+                    {formData.launchPlan.profiles.includes('physical_resource') && (
+                      <div className="max-w-sm">
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Resource distribution date</label>
+                        <input type="date" value={formData.launchPlan.resourceDistributionDate || formData.startDate} onChange={(e) => updateLaunchPlan({ resourceDistributionDate: e.target.value })} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2.5 text-sm font-medium focus:ring-2 focus:ring-teal-500 outline-none" />
+                        <p className="text-xs text-slate-500 mt-1">Physical-resource readiness is calculated from this date.</p>
+                      </div>
+                    )}
+
+                    <div className="border border-slate-200 rounded-lg p-4">
+                      <div className="font-semibold text-slate-900">Broad communication channels</div>
+                      <p className="text-xs text-slate-500 mt-1">Public information, leader communication, and targeted invitation are always included. Select only the additional broad channels approved for this study.</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+                        {COMMUNICATION_PROFILE_IDS.map((profile) => (
+                          <label key={profile} className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                            <input type="checkbox" checked={formData.launchPlan.profiles.includes(profile)} onChange={(e) => updateLaunchProfile(profile, e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-teal-700 focus:ring-teal-500" />
+                            {LAUNCH_PROFILE_LABELS[profile]}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
                     {formData.launchPlan.productionPath === 'jonathan_self_service' && (
                       <div className="flex items-start gap-3 px-4 py-3 border border-amber-200 bg-amber-50 rounded-md">
                         <AlertCircle size={18} className="text-amber-700 mt-0.5 flex-shrink-0" />
@@ -1890,7 +1926,7 @@ const App = () => {
                     <div className="border border-slate-200 rounded-lg overflow-hidden">
                       <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
                         <span className="text-sm font-semibold text-slate-800">Launch checkpoints</span>
-                        <span className="text-xs text-slate-500">{getLaunchSummary(formData).complete}/{getLaunchSummary(formData).total} ready</span>
+                        <span className="text-xs text-slate-500">{getLaunchSummary(formData).complete}/{getLaunchSummary(formData).total} ready{getLaunchSummary(formData).missingOwner ? ` · ${getLaunchSummary(formData).missingOwner} unassigned` : ''}{getLaunchSummary(formData).missingCompletionDetails ? ` · ${getLaunchSummary(formData).missingCompletionDetails} details missing` : ''}</span>
                       </div>
                       {formData.launchPlan.checkpoints.map((checkpoint, index, checkpoints) => (
                         <React.Fragment key={checkpoint.id}>
@@ -1911,7 +1947,7 @@ const App = () => {
                               <select aria-label={`${checkpoint.title} status`} value={checkpoint.status} onChange={(e) => updateCheckpoint(checkpoint.id, { status: e.target.value })} className="border border-slate-300 rounded-md px-2.5 py-2 text-xs font-semibold bg-white focus:ring-2 focus:ring-teal-500 outline-none">
                                 {LAUNCH_STATUSES.map((status) => <option key={status} value={status} disabled={status === 'done' && getUnmetDependencies(formData.launchPlan, checkpoint).length > 0}>{LAUNCH_STATUS_LABELS[status]}</option>)}
                               </select>
-                              <input aria-label={`${checkpoint.title} target date`} title={`Calculated target: ${checkpoint.calculatedDueDate || 'not set'}`} type="date" value={checkpoint.dueDateOverride || checkpoint.calculatedDueDate} onChange={(e) => updateCheckpoint(checkpoint.id, { dueDateOverride: e.target.value === checkpoint.calculatedDueDate ? '' : e.target.value })} className="border border-slate-300 rounded-md px-2.5 py-2 text-xs font-semibold bg-white focus:ring-2 focus:ring-teal-500 outline-none" />
+                              <input aria-label={`${checkpoint.title} target date`} title={`Calculated target: ${checkpoint.calculatedDueDate || 'not set'}`} type="date" value={checkpoint.dueDateOverride || checkpoint.calculatedDueDate} onChange={(e) => updateCheckpoint(checkpoint.id, { dueDateOverride: e.target.value === checkpoint.calculatedDueDate ? '' : e.target.value, dueDateOverrideReason: e.target.value === checkpoint.calculatedDueDate ? '' : checkpoint.dueDateOverrideReason })} className="border border-slate-300 rounded-md px-2.5 py-2 text-xs font-semibold bg-white focus:ring-2 focus:ring-teal-500 outline-none" />
                             </div>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-2">
@@ -1920,6 +1956,19 @@ const App = () => {
                           </div>
                           {(checkpoint.status === 'blocked' || checkpoint.blocker) && (
                             <input aria-label={`${checkpoint.title} blocker`} placeholder="What is blocking this?" value={checkpoint.blocker} onChange={(e) => updateCheckpoint(checkpoint.id, { blocker: e.target.value })} className="w-full border border-red-200 bg-red-50 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-red-400 outline-none" />
+                          )}
+                          {checkpoint.dueDateOverride && (
+                            <input aria-label={`${checkpoint.title} target date override reason`} placeholder="Why is the calculated target being overridden?" value={checkpoint.dueDateOverrideReason || ''} onChange={(e) => updateCheckpoint(checkpoint.id, { dueDateOverrideReason: e.target.value })} className="w-full border border-amber-200 bg-amber-50 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-amber-400 outline-none" />
+                          )}
+                          {checkpoint.status === 'not_required' && (
+                            <input aria-label={`${checkpoint.title} not-required reason`} placeholder="Why is this checkpoint not required, and who confirmed it?" value={checkpoint.notRequiredReason || ''} onChange={(e) => updateCheckpoint(checkpoint.id, { notRequiredReason: e.target.value })} className="w-full border border-slate-300 bg-slate-50 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-slate-400 outline-none" />
+                          )}
+                          {checkpoint.status === 'accepted_risk' && (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 p-3 border border-amber-200 bg-amber-50 rounded-md">
+                              <input aria-label={`${checkpoint.title} accepted-risk owner`} placeholder="Decision owner" value={checkpoint.acceptedRiskOwner || ''} onChange={(e) => updateCheckpoint(checkpoint.id, { acceptedRiskOwner: e.target.value })} className="border border-amber-200 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-amber-400 outline-none" />
+                              <input aria-label={`${checkpoint.title} accepted-risk mitigation`} placeholder="Mitigation" value={checkpoint.acceptedRiskMitigation || ''} onChange={(e) => updateCheckpoint(checkpoint.id, { acceptedRiskMitigation: e.target.value })} className="border border-amber-200 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-amber-400 outline-none" />
+                              <input aria-label={`${checkpoint.title} accepted-risk review date`} title="Risk review date" type="date" value={checkpoint.acceptedRiskReviewDate || ''} onChange={(e) => updateCheckpoint(checkpoint.id, { acceptedRiskReviewDate: e.target.value })} className="border border-amber-200 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-amber-400 outline-none" />
+                            </div>
                           )}
                           <details className="text-xs text-slate-500">
                             <summary className="cursor-pointer font-semibold hover:text-slate-700">Working notes</summary>

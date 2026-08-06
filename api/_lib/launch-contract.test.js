@@ -24,7 +24,7 @@ const orangevilleMonday = {
 test('creates the streamlined study launch plan with inferred resource profiles', () => {
   const launchPlan = createLaunchPlan(orangevilleMonday);
 
-  assert.equal(launchPlan.version, 3);
+  assert.equal(launchPlan.version, 4);
   assert.equal(launchPlan.pageMode, 'information_only');
   assert.equal(launchPlan.productionPath, 'admin_handoff');
   assert.equal(launchPlan.publicLaunchDate, '2026-08-10');
@@ -38,15 +38,42 @@ test('creates the streamlined study launch plan with inferred resource profiles'
   assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'digital_access_tested'), true);
   assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'planning_center_independent_proof'), false);
   assert.equal(launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'master_brief_ready').taskPolicy, 'create');
-  assert.equal(launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'social_media_copy_ready').taskPolicy, 'group');
+  assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'social_media_copy_ready'), false);
+  assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'targeted_invitation_plan_ready'), true);
+  assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'early_operational_check'), true);
   assert.equal(launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'planning_center_page_live').taskPolicy, 'monitor');
   assert.equal('kickoffDate' in launchPlan, false);
   assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'final_readiness_complete'), false);
   assert.deepEqual(
-    ['planning_center_copy_ready', 'compass_news_copy_ready', 'social_media_copy_ready', 'sunday_slide_brief_ready', 'leader_email_copy_ready']
+    ['planning_center_copy_ready', 'leader_email_copy_ready', 'targeted_invitation_plan_ready']
       .filter((id) => launchPlan.checkpoints.some((checkpoint) => checkpoint.id === id)),
-    ['planning_center_copy_ready', 'compass_news_copy_ready', 'social_media_copy_ready', 'sunday_slide_brief_ready', 'leader_email_copy_ready'],
+    ['planning_center_copy_ready', 'leader_email_copy_ready', 'targeted_invitation_plan_ready'],
   );
+});
+
+test('adds only the broad communication channels selected for the study', () => {
+  const launchPlan = createLaunchPlan(orangevilleMonday, {
+    profiles: ['universal_core', 'planning_center_information_page', 'compass_news', 'sunday_slide'],
+  });
+
+  assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'compass_news_copy_ready'), true);
+  assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'sunday_slide_brief_ready'), true);
+  assert.equal(launchPlan.checkpoints.some((checkpoint) => checkpoint.id === 'social_media_copy_ready'), false);
+  assert.deepEqual(
+    launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'promotion_submitted').dependsOn,
+    ['leader_email_copy_ready', 'targeted_invitation_plan_ready', 'planning_center_copy_ready', 'compass_news_copy_ready', 'sunday_slide_brief_ready'],
+  );
+});
+
+test('preserves legacy broad-channel checkpoints when upgrading a version-3 plan', () => {
+  const previous = createLaunchPlan(orangevilleMonday, {
+    version: 3,
+    profiles: ['universal_core', 'planning_center_information_page'],
+    checkpoints: [{ id: 'social_media_copy_ready', status: 'done', evidence: 'Scheduled.' }],
+  });
+
+  assert.equal(previous.profiles.includes('social_media'), true);
+  assert.equal(previous.checkpoints.find((checkpoint) => checkpoint.id === 'social_media_copy_ready').status, 'done');
 });
 
 test('adds the independent-proof checkpoint only for Jonathan self-service', () => {
@@ -97,6 +124,17 @@ test('removes the Planning Center profile when a public page is not required', (
   assert.equal(plan.pageMode, 'not_required');
   assert.equal(plan.profiles.includes('planning_center_information_page'), false);
   assert.equal(plan.checkpoints.some((checkpoint) => checkpoint.id === 'planning_center_page_live'), false);
+  assert.equal(plan.checkpoints.some((checkpoint) => checkpoint.id === 'public_information_exception_confirmed'), true);
+});
+
+test('adds signup and payment checks only for the selected Planning Center mode', () => {
+  const optional = createLaunchPlan(orangevilleMonday, { pageMode: 'optional_signup' });
+  const paid = createLaunchPlan(orangevilleMonday, { pageMode: 'paid_registration' });
+
+  assert.equal(optional.checkpoints.some((checkpoint) => checkpoint.id === 'signup_flow_verified'), true);
+  assert.equal(optional.checkpoints.some((checkpoint) => checkpoint.id === 'payment_flow_verified'), false);
+  assert.equal(paid.checkpoints.some((checkpoint) => checkpoint.id === 'signup_flow_verified'), true);
+  assert.equal(paid.checkpoints.some((checkpoint) => checkpoint.id === 'payment_flow_verified'), true);
 });
 
 test('preserves checkpoint progress while recalculating dates', () => {
@@ -157,6 +195,9 @@ test('calculates readiness without post-launch follow-up or a manual final check
   });
   const acceptedRisk = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'venue_host_av_ready');
   acceptedRisk.status = 'accepted_risk';
+  acceptedRisk.acceptedRiskOwner = 'Jonathan';
+  acceptedRisk.acceptedRiskMitigation = 'Confirm the remaining signage on arrival.';
+  acceptedRisk.acceptedRiskReviewDate = '2026-09-21';
 
   const summary = getLaunchSummary({ ...orangevilleMonday, launchPlan }, '2026-09-20');
 
@@ -164,6 +205,24 @@ test('calculates readiness without post-launch follow-up or a manual final check
   assert.equal(summary.readinessPercent, 100);
   assert.equal(summary.acceptedRisk, 1);
   assert.equal(summary.blocked, 0);
+});
+
+test('does not count not-required or accepted-risk checkpoints without decision details as complete', () => {
+  const launchPlan = createLaunchPlan(orangevilleMonday);
+  const targeted = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'targeted_invitation_plan_ready');
+  const venue = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'venue_host_av_ready');
+  targeted.status = 'not_required';
+  venue.status = 'accepted_risk';
+
+  let summary = getLaunchSummary({ ...orangevilleMonday, launchPlan }, '2026-08-01');
+  assert.equal(summary.missingCompletionDetails, 2);
+
+  targeted.notRequiredReason = 'Confirmed by the ministry owner: invitations are being handled through the linked kickoff event.';
+  venue.acceptedRiskOwner = 'Jonathan';
+  venue.acceptedRiskMitigation = 'Use the portable speaker if the installed system is unavailable.';
+  venue.acceptedRiskReviewDate = '2026-09-21';
+  summary = getLaunchSummary({ ...orangevilleMonday, launchPlan }, '2026-08-01');
+  assert.equal(summary.missingCompletionDetails, 0);
 });
 
 test('sanitizes nested launch data and rejects invalid checkpoint status', () => {
@@ -174,6 +233,19 @@ test('sanitizes nested launch data and rejects invalid checkpoint status', () =>
 
   assert.equal(result.errors.some((error) => error.includes('Invalid launchPlan.checkpoints[0].status')), true);
   assert.equal(result.launchPlan.checkpoints[0].status, 'not_started');
+});
+
+test('sanitization preserves communication profiles represented by legacy checkpoints', () => {
+  const launchPlan = createLaunchPlan(orangevilleMonday, {
+    profiles: ['universal_core', 'planning_center_information_page', 'social_media'],
+  });
+  launchPlan.version = 3;
+  launchPlan.profiles = ['universal_core', 'planning_center_information_page'];
+
+  const result = sanitizeLaunchPlan(launchPlan);
+
+  assert.equal(result.launchPlan.version, 4);
+  assert.equal(result.launchPlan.profiles.includes('social_media'), true);
 });
 
 test('sanitizes checkpoint working notes independently from completion evidence', () => {
@@ -190,8 +262,10 @@ test('sanitizes checkpoint working notes independently from completion evidence'
   assert.equal(sanitized.evidence, masterBrief.evidence);
 });
 
-test('prevents promotion submission from completing before all five standard outputs', () => {
-  const launchPlan = createLaunchPlan(orangevilleMonday);
+test('prevents communication submission from completing before selected outputs and core communication', () => {
+  const launchPlan = createLaunchPlan(orangevilleMonday, {
+    profiles: ['universal_core', 'planning_center_information_page', 'compass_news'],
+  });
   const promotion = launchPlan.checkpoints.find((checkpoint) => checkpoint.id === 'promotion_submitted');
   promotion.status = 'done';
 
