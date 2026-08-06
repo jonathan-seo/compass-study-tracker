@@ -57,7 +57,7 @@ export const LAUNCH_CHECKPOINT_TEMPLATES = [
   {
     id: 'social_media_copy_ready',
     title: 'Social-media copy prepared',
-    description: 'The social-media version has been derived from the approved master brief.',
+    description: 'The social-media version has been derived from the approved Planning Center master blurb.',
     profile: 'social_media',
     anchor: 'first_study_session_date',
     offsetDays: -42,
