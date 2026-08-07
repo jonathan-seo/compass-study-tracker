@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
+import { createPortal } from 'react-dom';
 import './index.css';
 import { 
   BookOpen, 
@@ -166,30 +167,134 @@ const LAUNCH_GRID_COLUMNS = [
 
 const LaunchStatusIndicator = ({ checkpoint, today }) => {
   if (!checkpoint) {
-    return <span title="Not required for this study" aria-label="Not required for this study" className="inline-flex h-7 w-7 items-center justify-center text-slate-300 text-lg">&ndash;</span>;
+    return <span aria-hidden="true" className="inline-flex h-7 w-7 items-center justify-center text-slate-300 text-lg">&ndash;</span>;
   }
 
   const overdue = !isCheckpointComplete(checkpoint) && effectiveDueDate(checkpoint) && effectiveDueDate(checkpoint) < today;
-  const label = overdue ? 'Overdue' : LAUNCH_STATUS_LABELS[checkpoint.status];
   if (overdue || checkpoint.status === 'blocked') {
-    return <AlertCircle size={18} className="text-red-600" title={label} aria-label={label} />;
+    return <AlertCircle size={18} className="text-red-600" aria-hidden="true" />;
   }
   if (checkpoint.status === 'done') {
-    return <Check size={19} strokeWidth={3} className="text-emerald-600" title={label} aria-label={label} />;
+    return <Check size={19} strokeWidth={3} className="text-emerald-600" aria-hidden="true" />;
   }
   if (checkpoint.status === 'in_progress') {
-    return <span title={label} aria-label={label} className="inline-block h-4 w-4 rounded-full border-2 border-amber-500 bg-[linear-gradient(90deg,#f59e0b_50%,transparent_50%)]" />;
+    return <span aria-hidden="true" className="inline-block h-4 w-4 rounded-full border-2 border-amber-500 bg-[linear-gradient(90deg,#f59e0b_50%,transparent_50%)]" />;
   }
   if (checkpoint.status === 'waiting_on_owner') {
-    return <Clock size={18} className="text-blue-600" title={label} aria-label={label} />;
+    return <Clock size={18} className="text-blue-600" aria-hidden="true" />;
   }
   if (checkpoint.status === 'accepted_risk') {
-    return <AlertTriangle size={18} className="text-amber-600" title={label} aria-label={label} />;
+    return <AlertTriangle size={18} className="text-amber-600" aria-hidden="true" />;
   }
   if (checkpoint.status === 'not_required') {
-    return <span title={label} aria-label={label} className="inline-flex h-7 w-7 items-center justify-center text-slate-400 text-lg">&ndash;</span>;
+    return <span aria-hidden="true" className="inline-flex h-7 w-7 items-center justify-center text-slate-400 text-lg">&ndash;</span>;
   }
-  return <span title={label} aria-label={label} className="inline-block h-4 w-4 rounded-full border-2 border-slate-400 bg-white" />;
+  return <span aria-hidden="true" className="inline-block h-4 w-4 rounded-full border-2 border-slate-400 bg-white" />;
+};
+
+const tooltipText = (value, maxLength = 360) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) return '';
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength).trimEnd()}…` : normalized;
+};
+
+const getLaunchStatusTooltip = (checkpoint, today) => {
+  if (!checkpoint) {
+    return {
+      status: 'Not required for this study',
+      target: '',
+      details: [{ label: 'Notes', value: 'This checkpoint does not apply to the study’s selected launch profile.' }],
+    };
+  }
+
+  const target = effectiveDueDate(checkpoint);
+  const overdue = !isCheckpointComplete(checkpoint) && target && target < today;
+  const currentStatus = LAUNCH_STATUS_LABELS[checkpoint.status] || checkpoint.status;
+  const status = checkpoint.status === 'blocked'
+    ? (overdue ? 'Blocked and overdue' : 'Blocked')
+    : (overdue ? `Overdue — currently ${currentStatus.toLowerCase()}` : currentStatus);
+  const details = [];
+
+  if (checkpoint.blocker?.trim()) details.push({ label: 'Blocker', value: tooltipText(checkpoint.blocker) });
+  if (checkpoint.status === 'not_required' && checkpoint.notRequiredReason?.trim()) {
+    details.push({ label: 'Reason', value: tooltipText(checkpoint.notRequiredReason) });
+  }
+  if (checkpoint.status === 'accepted_risk') {
+    if (checkpoint.acceptedRiskMitigation?.trim()) details.push({ label: 'Mitigation', value: tooltipText(checkpoint.acceptedRiskMitigation) });
+    const riskMeta = [checkpoint.acceptedRiskOwner?.trim(), checkpoint.acceptedRiskReviewDate ? `review ${checkpoint.acceptedRiskReviewDate}` : ''].filter(Boolean).join(' · ');
+    if (riskMeta) details.push({ label: 'Risk owner', value: riskMeta });
+  }
+  if (checkpoint.notes?.trim()) details.push({ label: 'Notes', value: tooltipText(checkpoint.notes) });
+  if (checkpoint.nextAction?.trim()) details.push({ label: 'Next action', value: tooltipText(checkpoint.nextAction) });
+  if (checkpoint.evidence?.trim()) details.push({ label: 'Evidence', value: tooltipText(checkpoint.evidence) });
+  if (details.length === 0) details.push({ label: 'Notes', value: 'No notes recorded.' });
+
+  return { status, target, details };
+};
+
+const LaunchCheckpointStatusButton = ({ checkpoint, column, study, today, onOpen }) => {
+  const buttonRef = useRef(null);
+  const [tooltipPosition, setTooltipPosition] = useState(null);
+  const tooltip = getLaunchStatusTooltip(checkpoint, today);
+  const tooltipId = `launch-tooltip-${study.id}-${column.id}`;
+
+  const showTooltip = () => {
+    const bounds = buttonRef.current?.getBoundingClientRect();
+    if (!bounds) return;
+    const width = 288;
+    const maxLeft = Math.max(12, window.innerWidth - width - 12);
+    const left = Math.min(maxLeft, Math.max(12, bounds.left + (bounds.width / 2) - (width / 2)));
+    const showAbove = bounds.bottom + 220 > window.innerHeight;
+    setTooltipPosition({
+      left,
+      top: showAbove ? bounds.top - 8 : bounds.bottom + 8,
+      showAbove,
+    });
+  };
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={onOpen}
+        onMouseEnter={showTooltip}
+        onMouseLeave={() => setTooltipPosition(null)}
+        onFocus={showTooltip}
+        onBlur={() => setTooltipPosition(null)}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        aria-label={`${study.title}: ${column.label} — ${tooltip.status}`}
+        aria-describedby={tooltipPosition ? tooltipId : undefined}
+      >
+        <LaunchStatusIndicator checkpoint={checkpoint} today={today} />
+      </button>
+      {tooltipPosition && typeof document !== 'undefined' && createPortal(
+        <div
+          id={tooltipId}
+          role="tooltip"
+          className="pointer-events-none fixed z-[100] w-72 rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-3 text-left text-xs text-white shadow-xl"
+          style={{
+            left: tooltipPosition.left,
+            top: tooltipPosition.top,
+            transform: tooltipPosition.showAbove ? 'translateY(-100%)' : undefined,
+          }}
+        >
+          <div className="font-semibold text-white">{column.label}</div>
+          <div className="mt-1 font-semibold text-sky-300">{tooltip.status}</div>
+          {tooltip.target && <div className="mt-1 text-slate-300">Target: {tooltip.target}</div>}
+          <div className="mt-2 space-y-1.5">
+            {tooltip.details.map((detail, index) => (
+              <div key={`${detail.label}-${index}`} className="leading-relaxed text-slate-200">
+                <span className="font-semibold text-white">{detail.label}:</span> {detail.value}
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 border-t border-slate-700 pt-2 text-[10px] text-slate-400">Click to open the study checklist.</div>
+        </div>,
+        document.body,
+      )}
+    </>
+  );
 };
 
 const emptyStudyForm = (stage = 'planning') => ({
@@ -583,9 +688,13 @@ const App = () => {
                     const checkpoint = launchPlan.checkpoints.find((candidate) => candidate.id === column.id);
                     return (
                       <td key={column.id} className="px-2 py-3 text-center">
-                        <button type="button" onClick={() => handleOpenModal(study)} className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-slate-100" aria-label={`${study.title}: ${column.label}`}>
-                          <LaunchStatusIndicator checkpoint={checkpoint} today={today} />
-                        </button>
+                        <LaunchCheckpointStatusButton
+                          checkpoint={checkpoint}
+                          column={column}
+                          study={study}
+                          today={today}
+                          onOpen={() => handleOpenModal(study)}
+                        />
                       </td>
                     );
                   })}

@@ -55,6 +55,8 @@ After every applicable readiness endpoint is complete, send leaders a concise la
 
 The grid intentionally excludes after-launch checkpoints; those remain grouped separately in each study.
 
+Hover over a grid symbol—or move keyboard focus to it—to see the interpreted status, target date, and any recorded working notes, blocker, not-required reason, accepted-risk details, next action, or evidence for that checkpoint. A red exclamation means the checkpoint is blocked, overdue, or both; the tooltip distinguishes those cases and preserves the underlying current status.
+
 ## Follow-up rhythm
 
 - Complete an early operational check within two business days.
